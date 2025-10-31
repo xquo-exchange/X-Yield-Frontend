@@ -1,0 +1,552 @@
+/* Main Container */
+.morpho-container {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  padding: 32px;
+  color: white;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Pool Detail Card */
+.pool-detail-card {
+  background: transparent;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pool-title {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: -0.3px;
+}
+
+.pool-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.pool-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pool-stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.pool-stat-value {
+  font-size: 20px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: -0.5px;
+}
+
+.pool-stat-value.apy-highlight {
+  color: rgba(16, 185, 129, 0.9);
+}
+
+/* Token Box */
+.morpho-token-box {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.morpho-token-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.morpho-balance-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.morpho-max-button {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 4px 8px;
+}
+
+.morpho-max-button:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.morpho-input-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.morpho-amount-input {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 32px;
+  font-weight: 400;
+  outline: none;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+}
+
+.morpho-amount-input::placeholder {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.morpho-usd-value {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Yield Projection */
+.yield-projection {
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.12);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.yield-title {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(16, 185, 129, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.yield-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.yield-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.yield-period {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.yield-amount {
+  font-size: 18px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.yield-amount.highlight {
+  color: rgba(16, 185, 129, 0.9);
+  font-size: 20px;
+}
+
+.yield-note {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+.fee-notice {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
+  font-size: 12px;
+  color: rgba(251, 191, 36, 0.9);
+}
+
+/* Withdraw Summary */
+.withdraw-summary {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.withdraw-title {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(239, 68, 68, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.withdraw-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.withdraw-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.withdraw-row:last-child {
+  border-bottom: none;
+}
+
+.withdraw-row.warning {
+  color: rgba(251, 191, 36, 0.9);
+}
+
+.withdraw-row.total {
+  font-weight: 500;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.withdraw-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+.withdraw-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.withdraw-row.total .withdraw-value {
+  color: rgba(16, 185, 129, 0.9);
+  font-size: 16px;
+}
+
+/* Action Button */
+.morpho-action-button {
+  width: 100%;
+  background: #ffffff;
+  border: none;
+  border-radius: 12px;
+  color: #000000;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 16px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.morpho-action-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  transform: scale(1.01);
+}
+
+.morpho-action-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Warning Modal */
+.morpho-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.morpho-warning__content {
+  background-color: #1e1e1e;
+  border-radius: 16px;
+  padding: 32px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.morpho-warning__title {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.morpho-warning__text {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin: 0;
+}
+
+.morpho-warning__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-secondary,
+.btn-primary {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary {
+  background-color: #0070f3;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #0051cc;
+}
+
+/* Status Modal */
+.status-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 20vh;
+  z-index: 10000;
+}
+
+.status-modal-positioned {
+  background-color: #1e1e1e;
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.status-modal-title {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.status-modal-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.status-close-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background-color: #0070f3;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background-color 0.2s;
+}
+
+.status-close-btn:hover {
+  background-color: #0051cc;
+}
+
+.status-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top: 4px solid #0070f3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .morpho-container {
+    padding: 24px;
+    border-radius: 20px;
+  }
+  
+  .pool-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  
+  .yield-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .morpho-container {
+    padding: 20px;
+  }
+  
+  .pool-title {
+    font-size: 15px;
+    margin-bottom: 16px;
+  }
+  
+  .pool-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  
+  .pool-stat-value {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .morpho-container {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  
+  .pool-detail-card {
+    padding: 16px;
+  }
+  
+  .pool-title {
+    font-size: 14px;
+  }
+  
+  .pool-stat-label {
+    font-size: 10px;
+  }
+  
+  .pool-stat-value {
+    font-size: 16px;
+  }
+  
+  .morpho-amount-input {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 390px) {
+  .morpho-container {
+    padding: 14px;
+    gap: 20px;
+  }
+  
+  .pool-detail-card {
+    padding: 14px;
+  }
+  
+  .pool-title {
+    font-size: 13px;
+  }
+  
+  .pool-stat-value {
+    font-size: 15px;
+  }
+  
+  .morpho-amount-input {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 320px) {
+  .morpho-container {
+    padding: 10px;
+    gap: 14px;
+    max-width: 100%;
+  }
+  
+  .pool-detail-card {
+    padding: 10px;
+  }
+  
+  .pool-title {
+    font-size: 12px;
+  }
+  
+  .pool-stats-grid {
+    gap: 10px;
+  }
+  
+  .pool-stat-value {
+    font-size: 13px;
+  }
+  
+  .morpho-amount-input {
+    font-size: 16px;
+  }
+}
+

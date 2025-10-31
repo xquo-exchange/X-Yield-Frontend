@@ -1,70 +1,207 @@
-# Getting Started with Create React App
+# MorphoApp - Morpho Protocol on Base
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React web application that connects to the Morpho protocol on Base mainnet (chainId 8453). Built with the same visual style, layout, and UX as X-QUO.
 
-## Available Scripts
+## 🎯 Project Overview
 
-In the project directory, you can run:
+This application provides a clean, user-friendly interface for:
+- **Depositing** funds to Morpho pools on Base
+- **Withdrawing** funds from Morpho pools
+- **WalletConnect** integration (Base mainnet only)
+- Conditional fee display
+- Legal disclaimer section
 
-### `npm start`
+## 🏗️ Architecture
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Components
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. **Navbar** - Top navigation with wallet connection and network switching
+2. **Sidebar** - Tab switcher for Deposit/Withdraw modes
+3. **Header** - Page title and important notice disclaimer
+4. **MorphoApp** - Main interaction component for deposit/withdraw flows
+5. **Toast** - Notification system for success/error messages
 
-### `npm test`
+### Context & Hooks
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **WalletContext** - Manages wallet connection state and Base network configuration
+- **useWallet** - Custom hook to access wallet functionality
 
-### `npm run build`
+### Utilities
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **walletconnectProvider.js** - WalletConnect v2 provider configured for Base mainnet
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🚀 Getting Started
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Prerequisites
 
-### `npm run eject`
+- Node.js 16+ and npm
+- A Web3 wallet (MetaMask, Trust Wallet, Rainbow, etc.)
+- ETH on Base network for gas fees
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Installation
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm install
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Development
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```bash
+npm run dev
+```
 
-## Learn More
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Build
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+npm run build
+```
 
-### Code Splitting
+## 🔧 Configuration
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Network Settings
 
-### Analyzing the Bundle Size
+The app is configured for **Base mainnet**:
+- Chain ID: `8453`
+- RPC URL: `https://base.llamarpc.com`
+- Explorer: `https://basescan.org`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+To modify network settings, edit:
+- `src/utils/walletconnectProvider.js` - WalletConnect configuration
+- `src/contexts/WalletContext.jsx` - Network validation and switching
 
-### Making a Progressive Web App
+### Fee Configuration
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Fees are conditionally displayed. To show/hide fees, edit `src/components/MorphoApp.jsx`:
 
-### Advanced Configuration
+```javascript
+const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show, or null to hide
+const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### Contract Addresses
 
-### Deployment
+Update Morpho vault address in `src/components/MorphoApp.jsx`:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+```javascript
+const MORPHO_VAULT_ADDRESS = "0x..."; // Replace with actual Morpho vault address
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
+```
 
-### `npm run build` fails to minify
+## 🎨 Styling
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+The app uses the same visual style as X-QUO:
+- Dark theme with glassmorphism effects
+- Inter font family
+- Responsive design (mobile-first)
+- Smooth animations and transitions
+
+Color palette:
+- Background: `#0a0a0a` / `#000000`
+- Primary accent: `rgba(16, 185, 129, 0.9)` (green)
+- Error/Warning: `rgba(239, 68, 68, 0.9)` (red)
+- Borders: `rgba(255, 255, 255, 0.06)`
+
+## 📋 Features Implemented
+
+✅ WalletConnect integration with Base mainnet  
+✅ Deposit/Withdraw UI flow  
+✅ Balance fetching for USDC and vault tokens  
+✅ Yield projections based on APY  
+✅ Withdrawal fee calculations (conditional)  
+✅ Network validation and switching  
+✅ Responsive design (mobile, tablet, desktop)  
+✅ Toast notifications  
+✅ Transaction status modals  
+✅ Legal disclaimer section  
+
+## 🔨 TODO: Morpho Integration
+
+The current implementation includes **placeholder logic** for Morpho contract interactions. To complete the integration:
+
+1. **Add Morpho SDK or Contract ABIs**
+   ```bash
+   npm install @morpho-labs/morpho-ethers-contract
+   ```
+
+2. **Update `MorphoApp.jsx`** with actual Morpho contract calls:
+   - Replace `executeDeposit()` placeholder with Morpho vault deposit logic
+   - Replace `executeWithdrawal()` placeholder with Morpho vault withdraw logic
+   - Fetch actual vault balance from Morpho contract
+
+3. **Example Integration Pattern**:
+   ```javascript
+   // In executeDeposit()
+   const morphoVault = new ethers.Contract(
+     MORPHO_VAULT_ADDRESS,
+     MORPHO_VAULT_ABI,
+     signer
+   );
+   
+   const tx = await morphoVault.deposit(requiredAmount, account);
+   await tx.wait();
+   ```
+
+## 📁 Project Structure
+
+```
+C:\x-yield-frontend/
+├── src/
+│   ├── components/
+│   │   ├── Navbar.jsx / .css
+│   │   ├── Sidebar.jsx / .css
+│   │   ├── Header.jsx / .css
+│   │   ├── Toast.jsx / .css
+│   │   └── MorphoApp.jsx / .css
+│   ├── contexts/
+│   │   └── WalletContext.jsx
+│   ├── hooks/
+│   │   └── useWallet.js
+│   ├── utils/
+│   │   └── walletconnectProvider.js
+│   ├── App.jsx
+│   ├── App.css
+│   ├── index.css
+│   └── main.jsx
+├── public/
+│   └── README_ASSETS.md (instructions for logo assets)
+├── package.json
+└── vite.config.js
+```
+
+## 🔐 Security Notes
+
+- Always verify contract addresses before transactions
+- Test thoroughly on Base testnet (Goerli) before mainnet
+- Users should understand DeFi risks (see disclaimer in app)
+- Never commit private keys or sensitive data
+
+## 📝 Reference
+
+This project was built using the X-QUO reference files from `c:\react-fronted\src\` to maintain consistent UX and styling.
+
+## 📄 License
+
+This is a demonstration project. Ensure you have proper licensing for production use.
+
+## 🤝 Contributing
+
+To extend this project:
+1. Complete Morpho protocol integration
+2. Add additional Morpho vaults
+3. Implement advanced features (compound strategies, etc.)
+4. Add analytics/tracking
+5. Implement proper error handling for all edge cases
+
+## 🐛 Known Issues
+
+- Morpho contract integration is placeholder logic
+- Asset files (logos) need to be copied manually (see `public/README_ASSETS.md`)
+
+## 📞 Support
+
+For issues related to:
+- **Morpho Protocol**: [Morpho Documentation](https://docs.morpho.xyz)
+- **Base Network**: [Base Documentation](https://docs.base.org)
+- **WalletConnect**: [WalletConnect Docs](https://docs.walletconnect.com)

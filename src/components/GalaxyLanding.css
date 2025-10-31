@@ -1,0 +1,276 @@
+.galaxy-landing {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    overflow: hidden;
+  }
+  
+  .galaxy-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  
+  .galaxy-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 100px 20px 20px;
+  }
+  
+  .galaxy-hero {
+    text-align: center;
+    animation: fadeIn 0.8s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .galaxy-logo {
+    height: 80px;
+    width: auto;
+    margin-bottom: 24px;
+  }
+  
+  .galaxy-subtitle {
+    font-size: 17px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 20px;
+    font-weight: 400;
+    transition: color 0.2s ease;
+  }
+  
+  /* Shimmering gradient text for the landing subtitle */
+  .galaxy-shine {
+    /* Base visible text color */
+    color: rgba(181, 181, 181);
+    display: inline-block;
+    position: relative;
+  }
+  
+  /* Overlay the animated highlight using a pseudo-element so the base text remains visible */
+  .galaxy-shine::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    /* stronger, wider highlight for better visibility */
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0) 10%,
+      rgba(163, 163, 163, 0.8) 10%,
+      rgba(175, 175, 175, 0.8) 70%,
+      rgba(255, 255, 255, 1) 100%,
+      rgba(255, 255, 255, 0) 10%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    pointer-events: none;
+    display: inline-block;
+    animation: galaxy-shine 5s linear infinite;
+    font: inherit;
+    line-height: inherit;
+    transform: translateZ(0); /* force GPU to improve rendering */
+  }
+  
+  
+  @keyframes galaxy-shine {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+  
+  /* Utility class to pause the shine when needed */
+  .galaxy-shine--paused {
+    /* pause the overlay animation; base text remains visible */
+    --_paused: paused;
+  }
+  
+  .galaxy-shine--paused::after {
+    animation-play-state: paused !important;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .galaxy-subtitle-error {
+    color: rgba(255, 90, 90, 0.8);
+  }
+  
+  .galaxy-mobile-warning {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.3);
+    margin-bottom: 32px;
+    font-weight: 400;
+    font-style: italic;
+  }
+  
+  .galaxy-connect-btn {
+    padding: 14px 32px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 980px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .galaxy-connect-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: scale(1.02);
+  }
+  
+  .galaxy-connect-btn:active {
+    transform: scale(0.98);
+  }
+  
+  .galaxy-connect-btn-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  
+  .galaxy-connect-btn-disabled:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.08);
+    transform: none;
+  }
+  
+  @media (max-width: 768px) {
+    .galaxy-logo {
+      height: 64px;
+    }
+    
+    .galaxy-subtitle {
+      font-size: clamp(14px, 3.5vw, 16px);
+      margin-bottom: 18px;
+    }
+    
+    .galaxy-mobile-warning {
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    
+    .galaxy-content {
+      padding: 80px 20px 20px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .galaxy-logo {
+      height: 56px;
+      margin-bottom: 20px;
+    }
+    
+    .galaxy-subtitle {
+      font-size: clamp(13px, 3.5vw, 15px);
+      margin-bottom: 16px;
+    }
+    
+    .galaxy-mobile-warning {
+      font-size: 12px;
+      margin-bottom: 28px;
+    }
+    
+    .galaxy-connect-btn {
+      padding: 12px 28px;
+      font-size: 14px;
+      min-height: 50px;
+    }
+    
+    .galaxy-content {
+      padding: 70px 16px 16px;
+    }
+  }
+  
+  @media (max-width: 390px) {
+    .galaxy-logo {
+      height: 52px;
+      margin-bottom: 18px;
+    }
+    
+    .galaxy-subtitle {
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    
+    .galaxy-mobile-warning {
+      font-size: 11px;
+      margin-bottom: 26px;
+    }
+    
+    .galaxy-connect-btn {
+      width: auto;
+      max-width: 280px;
+      padding: 12px 24px;
+      font-size: 13px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .galaxy-content {
+      padding: 60px 12px 12px;
+    }
+  }
+  
+  @media (max-width: 320px) {
+    .galaxy-logo {
+      height: 48px;
+      margin-bottom: 14px;
+    }
+    
+    .galaxy-subtitle {
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .galaxy-mobile-warning {
+      font-size: 10px;
+      margin-bottom: 24px;
+    }
+    
+    .galaxy-connect-btn {
+      width: auto;
+      max-width: 100%;
+      padding: 10px 18px;
+      font-size: 12px;
+      min-height: 40px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .galaxy-content {
+      padding: 54px 10px 10px;
+    }
+  }
