@@ -1,38 +1,150 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
+/* Page Transition Animations */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
-.App-header {
-  background-color: #282c34;
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body, #root {
+  background: #000000;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+.app {
   min-height: 100vh;
+  background: #000000;
+}
+
+.content-wrapper {
+  width: 100%;
+  min-height: calc(100vh - 80px);
+  padding: 20px 60px 40px; /* Closer to top on desktop */
+}
+
+.main-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 0; /* No gap - sidebar will overlap with negative margin */
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.App-link {
-  color: #61dafb;
+.center-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.pool-stats-container {
+  margin-top: 40px;
+}
+
+@media (max-width: 1024px) {
+  .content-wrapper {
+    padding: 32px 40px;
   }
-  to {
-    transform: rotate(360deg);
+  
+  .main-container {
+    gap: 24px; /* Restore gap on tablet/mobile */
+  }
+  
+  .pool-stats-container {
+    margin-top: 32px;
   }
 }
+
+@media (max-width: 768px) {
+  .content-wrapper {
+    padding: 24px 24px;
+  }
+  
+  .main-container {
+    gap: 24px;
+  }
+  
+  .pool-stats-container {
+    margin-top: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .content-wrapper {
+    padding: 20px 20px;
+  }
+  
+  .pool-stats-container {
+    margin-top: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-wrapper {
+    padding: 16px 16px;
+  }
+  
+  .center-content {
+    gap: 24px;
+  }
+  
+  .pool-stats-container {
+    margin-top: 22px;
+  }
+}
+
+@media (max-width: 390px) {
+  .content-wrapper {
+    padding: 14px 12px;
+  }
+  
+  .center-content {
+    gap: 20px;
+  }
+  
+  .pool-stats-container {
+    margin-top: 20px;
+  }
+}
+
+@media (max-width: 320px) {
+  .content-wrapper {
+    padding: 12px 10px;
+  }
+  
+  .center-content {
+    gap: 16px;
+  }
+  
+  .pool-stats-container {
+    margin-top: 20px;
+  }
+}
+
