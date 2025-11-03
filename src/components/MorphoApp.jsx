@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
@@ -41,120 +41,116 @@ const VaultApp = ({ onShowToast, mode }) => {
   const [usdcBalance, setUsdcBalance] = useState("0");
   const [vaultBalance, setVaultBalance] = useState("0");
   
+  // In-memory balance cache
+  const balanceCacheRef = useRef(null);
+  
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
   const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
   
   const BASE_APY = 8.5; // Vault APY
 
-  // Fetch balances function (reusable)
-  const fetchBalances = useCallback(async () => {
-    console.log('🔍 Balance fetch triggered:', { account, hasProvider: !!walletProvider, chainId });
-    
+  // Invalidate balance cache
+  const invalidateBalanceCache = useCallback(() => {
+    balanceCacheRef.current = null;
+  }, []);
+
+  // Fetch balances function (reusable) - optimized with caching
+  const fetchBalances = useCallback(async (forceRefresh = false) => {
     if (!account || !walletProvider) {
-      console.log('⏭️ Skipping balance fetch - missing account or provider');
       setUsdcBalance("0");
       setVaultBalance("0");
+      balanceCacheRef.current = null;
       return;
     }
 
     if (chainId !== 8453) {
-      console.log(`⏭️ Skipping balance fetch - wrong network (chainId: ${chainId}, expected: 8453)`);
       setUsdcBalance("0");
       setVaultBalance("0");
+      balanceCacheRef.current = null;
+      return;
+    }
+
+    // Check cache first (unless force refresh)
+    const cache = balanceCacheRef.current;
+    if (!forceRefresh && cache && 
+        cache.account === account && 
+        cache.chainId === chainId) {
+      // Use cached balances
+      setUsdcBalance(cache.usdcBalance);
+      setVaultBalance(cache.vaultBalance);
       return;
     }
 
     try {
-      console.log("🔄 Fetching balances...");
-      console.log("  - Account:", account);
-      console.log("  - Chain ID:", chainId);
-      
-      // Verify network matches before fetching
-      const network = await walletProvider.getNetwork();
-      console.log("  - Provider network chainId:", network.chainId);
-      
-      if (network.chainId !== 8453) {
-        console.log(`⚠️ Network mismatch: Expected 8453 (Base), got ${network.chainId}. Skipping balance fetch.`);
-        setUsdcBalance("0");
-        setVaultBalance("0");
-        return;
-      }
-      
-      console.log("  - Fetching USDC balance from:", USDC_ADDRESS);
-      // Fetch USDC balance
+      // Fetch all data in parallel for speed
       const usdcContract = new ethers.Contract(
         USDC_ADDRESS,
         ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"],
         walletProvider
       );
       
-      const [usdcBal, usdcDecimals] = await Promise.all([
-        usdcContract.balanceOf(account),
-        usdcContract.decimals()
-      ]);
-      
-      console.log("  - USDC raw balance:", usdcBal.toString(), "decimals:", usdcDecimals);
-      const formattedUsdc = ethers.utils.formatUnits(usdcBal, usdcDecimals);
-      setUsdcBalance(formattedUsdc);
-      console.log("  - USDC formatted balance:", formattedUsdc);
-      
-      console.log("  - Fetching vault balance from:", VAULT_ADDRESS);
-      // Fetch vault balance (ERC-4626)
       const vaultContract = new ethers.Contract(
         VAULT_ADDRESS,
         VAULT_ABI,
         walletProvider
       );
 
-      const [vaultTokenBalance, assetAddress] = await Promise.all([
+      // Parallel fetch all data
+      const [usdcBal, usdcDecimals, vaultTokenBalance, network] = await Promise.all([
+        usdcContract.balanceOf(account),
+        usdcContract.decimals(),
         vaultContract.balanceOf(account),
-        vaultContract.asset() // Verify it matches USDC
+        walletProvider.getNetwork()
       ]);
-
-      console.log("  - Vault token balance (shares):", vaultTokenBalance.toString());
-      console.log("  - Vault asset address:", assetAddress);
-
-      // Convert vault tokens to USDC value using convertToAssets
-      let formattedVaultBalance = "0";
-      if (!vaultTokenBalance.isZero()) {
-        console.log("  - Converting shares to assets...");
-        const assetsValue = await vaultContract.convertToAssets(vaultTokenBalance);
-        const usdcDecimals = 6; // USDC has 6 decimals
-        console.log("  - Assets value (raw):", assetsValue.toString());
-        formattedVaultBalance = ethers.utils.formatUnits(assetsValue, usdcDecimals);
-        console.log("  - Assets value (formatted):", formattedVaultBalance);
-      }
-
-      setVaultBalance(formattedVaultBalance);
-      console.log("✅ Balance fetch complete - USDC:", formattedUsdc, "Vault:", formattedVaultBalance);
-    } catch (error) {
-      console.error("❌ Balance fetch error:", error);
-      console.error("  - Error code:", error.code);
-      console.error("  - Error message:", error.message);
-      console.error("  - Error stack:", error.stack);
       
-      // Handle network change errors gracefully
-      if (error.code === 'NETWORK_ERROR' || error.message?.includes('underlying network changed')) {
-        console.log("⚠️ Network change detected during balance fetch. Will retry on next update.");
-        // Don't reset balances to 0 immediately - wait for provider to update
+      // Verify network matches
+      if (network.chainId !== 8453) {
+        setUsdcBalance("0");
+        setVaultBalance("0");
+        balanceCacheRef.current = null;
         return;
       }
+
+      // Format USDC balance
+      const formattedUsdc = ethers.utils.formatUnits(usdcBal, usdcDecimals);
       
-      console.log("⚠️ Setting balances to 0 due to error");
+      // Convert vault tokens to USDC value
+      let formattedVaultBalance = "0";
+      if (!vaultTokenBalance.isZero()) {
+        const assetsValue = await vaultContract.convertToAssets(vaultTokenBalance);
+        formattedVaultBalance = ethers.utils.formatUnits(assetsValue, 6); // USDC has 6 decimals
+      }
+
+      // Update state and cache
+      setUsdcBalance(formattedUsdc);
+      setVaultBalance(formattedVaultBalance);
+      
+      // Store in cache
+      balanceCacheRef.current = {
+        usdcBalance: formattedUsdc,
+        vaultBalance: formattedVaultBalance,
+        account,
+        chainId,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      // Handle network change errors gracefully
+      if (error.code === 'NETWORK_ERROR' || error.message?.includes('underlying network changed')) {
+        return; // Don't reset balances - wait for provider to update
+      }
+      
       setUsdcBalance("0");
       setVaultBalance("0");
+      balanceCacheRef.current = null;
     }
   }, [account, walletProvider, chainId]);
 
-  // Fetch balances on mount/account change (with debounce to prevent rapid calls)
+  // Fetch balances only when account/chainId/provider changes (not on mode change)
+  // No debounce - cache already prevents unnecessary fetches, so instant is fine
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchBalances();
-    }, 150); // Small delay to let provider settle after chain changes
-    
-    return () => clearTimeout(timeoutId);
-  }, [fetchBalances]);
+    fetchBalances(false); // Don't force refresh on dependency changes
+  }, [account, walletProvider, chainId]); // Only depend on these, not fetchBalances or mode
 
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
@@ -387,8 +383,9 @@ const VaultApp = ({ onShowToast, mode }) => {
       setShowStatus(false);
       onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
 
-      // Refresh balances
-      await fetchBalances();
+      // Invalidate cache and refresh balances after transaction
+      invalidateBalanceCache();
+      await fetchBalances(true); // Force refresh after transaction
       setAmount(""); // Clear input
       
       console.log("🔵 ========== DEPOSIT SUCCESS ==========");
@@ -627,8 +624,9 @@ const VaultApp = ({ onShowToast, mode }) => {
       setShowStatus(false);
       onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
 
-      // Refresh balances
-      await fetchBalances();
+      // Invalidate cache and refresh balances after transaction
+      invalidateBalanceCache();
+      await fetchBalances(true); // Force refresh after transaction
       setAmount(""); // Clear input
       
       console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");

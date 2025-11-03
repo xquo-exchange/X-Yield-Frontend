@@ -5,35 +5,29 @@ let cachedProvider = null;
 let isInitializing = false;
 
 export async function initWalletConnect() {
+  // Prevent concurrent initializations - return early if already initializing
+  if (isInitializing) {
+    console.log('🔗 WalletConnect: Already initializing, waiting...');
+    while (isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    // After initialization completes, return the cached provider if it exists
+    if (cachedProvider && cachedProvider.connected) {
+      return cachedProvider;
+    }
+  }
+
+  // Check if we have an existing connected provider - return it without showing QR
+  if (cachedProvider && cachedProvider.connected) {
+    console.log('🔗 WalletConnect: Using existing connected provider (no QR needed)');
+    return cachedProvider;
+  }
+
+  isInitializing = true;
+  console.log('🔗 WalletConnect: Initializing provider for Base...');
+  
   try {
-    // 🧹 ALWAYS START FRESH - Don't reuse cached providers
-    // This ensures we get a clean connection every time
-    if (cachedProvider) {
-      console.log('🧹 Clearing existing cached provider for fresh start...');
-      try {
-        if (cachedProvider.connected) {
-          await cachedProvider.disconnect();
-        }
-        if (typeof cachedProvider.removeAllListeners === 'function') {
-          cachedProvider.removeAllListeners();
-        }
-      } catch (e) {
-        // Ignore cleanup errors
-      }
-      cachedProvider = null;
-    }
-
-    // Prevent concurrent initializations
-    if (isInitializing) {
-      console.log('🔗 WalletConnect: Waiting for initialization to complete...');
-      while (isInitializing) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
-    isInitializing = true;
-    console.log('🔗 WalletConnect: Initializing fresh provider for Base...');
-    
+    // Initialize provider - this will check for existing sessions in localStorage
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
       chains: [8453], // Base mainnet
@@ -65,9 +59,14 @@ export async function initWalletConnect() {
       }
     });
     
-    console.log('🔗 WalletConnect: Provider created, enabling connection...');
-    await provider.enable();
-    console.log('✅ WalletConnect: Provider enabled successfully');
+    // Only enable (show QR) if not already connected
+    if (!provider.connected) {
+      console.log('🔗 WalletConnect: Provider created, enabling connection...');
+      await provider.enable();
+      console.log('✅ WalletConnect: Provider enabled successfully');
+    } else {
+      console.log('✅ WalletConnect: Provider already connected (no QR needed)');
+    }
     
     cachedProvider = provider;
     isInitializing = false;
@@ -106,29 +105,8 @@ export function clearWalletConnectCache() {
   
   isInitializing = false;
   
-  // Also clear any WalletConnect localStorage items
-  if (typeof window !== 'undefined' && window.localStorage) {
-    const keysToRemove = [];
-    Object.keys(localStorage).forEach(key => {
-      if (
-        key.includes('wc@') || 
-        key.includes('WalletConnect') ||
-        key.includes('WALLETCONNECT') ||
-        key.startsWith('wc-')
-      ) {
-        keysToRemove.push(key);
-      }
-    });
-    
-    keysToRemove.forEach(key => {
-      try {
-        localStorage.removeItem(key);
-      } catch (e) {
-        // Ignore errors
-      }
-    });
-  }
-  
+  // Don't clear WalletConnect localStorage - let it persist sessions
+  // Only clear if explicitly disconnecting (handled in handleDisconnect)
   console.log('✅ WalletConnect cache cleared');
 }
 
