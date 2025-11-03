@@ -5,7 +5,7 @@ import Orb from "./components/Orb";
 import Navbar from "./components/Navbar";
 // import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import MorphoApp from "./components/MorphoApp";
+import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
 import "./App.css";
@@ -44,7 +44,7 @@ function AppContent() {
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
           
           <div className="center-content" key={activePage} style={{animation: 'fadeInScale 0.3s ease-out'}}>
-            <MorphoApp 
+            <VaultApp 
               onShowToast={showToast}
               mode={activePage}
             />

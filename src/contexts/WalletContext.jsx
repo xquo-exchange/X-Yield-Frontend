@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
-import { initWalletConnect } from '../utils/walletconnectProvider';
+import { initWalletConnect, clearWalletConnectCache } from '../utils/walletconnectProvider';
 
 export const WalletContext = createContext();
 
@@ -10,8 +10,16 @@ export const WalletProvider = ({ children }) => {
   const [connecting, setConnecting] = useState(false);
   const [provider, setProvider] = useState(null);
   const [chainId, setChainId] = useState(null);
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
   const [walletType] = useState('walletconnect');
   const wcProviderRef = useRef(null);
+  const lastChainIdRef = useRef(null);
+  const chainChangeTimeoutRef = useRef(null);
+  const listenersSetupRef = useRef(false);
+  const accountsChangedHandlerRef = useRef(null);
+  const chainChangedHandlerRef = useRef(null);
+  const disconnectHandlerRef = useRef(null);
+  const pendingTargetChainRef = useRef(null);
 
   // Version check and auto-reconnect on mount
   useEffect(() => {
@@ -22,6 +30,7 @@ export const WalletProvider = ({ children }) => {
     if (storedVersion !== APP_VERSION) {
       console.log('🔄 New version detected, clearing cache...');
       localStorage.clear();
+      clearWalletConnectCache();
       localStorage.setItem('appVersion', APP_VERSION);
     }
     
@@ -39,7 +48,8 @@ export const WalletProvider = ({ children }) => {
     };
 
     autoConnect();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount, not on connectWallet changes
 
   // Cleanup event listeners on unmount
   useEffect(() => {
@@ -52,10 +62,24 @@ export const WalletProvider = ({ children }) => {
 
   // Connect wallet via WalletConnect
   const connectWallet = useCallback(async () => {
+    // Prevent duplicate connects and second QR modals
+    if (connecting) {
+      return { success: false, error: 'ALREADY_CONNECTING', message: 'Already connecting...' };
+    }
+    if (isConnected && wcProviderRef.current && wcProviderRef.current.connected) {
+      return { success: true, address: walletAddress, chainId };
+    }
+
     setConnecting(true);
     try {
       console.log('🔗 Initializing WalletConnect for Base...');
-      const wcProvider = await initWalletConnect();
+      // If we already have a provider and it's connected, reuse it
+      if (wcProviderRef.current && wcProviderRef.current.connected) {
+        console.log('🔗 Reusing existing WalletConnect session');
+      }
+      const wcProvider = wcProviderRef.current && wcProviderRef.current.connected
+        ? wcProviderRef.current
+        : await initWalletConnect();
       wcProviderRef.current = wcProvider;
 
       // Create ethers provider
@@ -64,8 +88,30 @@ export const WalletProvider = ({ children }) => {
       const address = await signer.getAddress();
       const network = await ethersProvider.getNetwork();
 
-      // Set up event listeners
-      wcProvider.on('accountsChanged', (accounts) => {
+      // Remove old listeners if they exist (prevents duplicates)
+      // Only remove if it's the same provider instance
+      if (listenersSetupRef.current && wcProviderRef.current === wcProvider) {
+        const removeListener = (event, handler) => {
+          if (handler && wcProvider) {
+            // Try .off() first (EIP-1193 style)
+            if (typeof wcProvider.off === 'function') {
+              wcProvider.off(event, handler);
+            }
+            // Try .removeListener() (Node.js EventEmitter style)
+            else if (typeof wcProvider.removeListener === 'function') {
+              wcProvider.removeListener(event, handler);
+            }
+          }
+        };
+        
+        removeListener('accountsChanged', accountsChangedHandlerRef.current);
+        removeListener('chainChanged', chainChangedHandlerRef.current);
+        removeListener('disconnect', disconnectHandlerRef.current);
+        console.log('🧹 Removed old event listeners');
+      }
+
+      // Create new listener functions
+      accountsChangedHandlerRef.current = (accounts) => {
         console.log('🔄 Accounts changed:', accounts);
         if (accounts.length > 0) {
           setWalletAddress(accounts[0]);
@@ -73,30 +119,174 @@ export const WalletProvider = ({ children }) => {
         } else {
           handleDisconnect();
         }
-      });
+      };
 
-      wcProvider.on('chainChanged', (chainIdHex) => {
-        console.log('🔄 Chain changed:', chainIdHex);
+      chainChangedHandlerRef.current = async (chainIdHex) => {
         const newChainId = parseInt(chainIdHex, 16);
-        setChainId(newChainId);
-        console.log('✅ Chain updated to:', newChainId);
-      });
+        
+        // If we're in a pending switch and this event isn't the target, ignore it
+        // This prevents WalletConnect from switching us back during network change
+        if (pendingTargetChainRef.current && newChainId !== pendingTargetChainRef.current) {
+          console.log('⏭️ Ignoring non-target chain change during switch:', newChainId, '(waiting for', pendingTargetChainRef.current, ')');
+          return;
+        }
+        
+        // If it matches the pending target, clear the pending flag
+        if (pendingTargetChainRef.current === newChainId) {
+          console.log('✅ Chain change matches target, clearing pending flag');
+          pendingTargetChainRef.current = null;
+          setSwitchingNetwork(false);
+        }
+        
+        // Immediate check: if we already processed this chain, silently return
+        // Set it immediately to prevent other handlers (if any) from processing
+        if (lastChainIdRef.current === newChainId) {
+          return; // Silent skip - duplicate event
+        }
+        
+        // Mark as processing immediately to prevent concurrent handlers
+        const previousChainId = lastChainIdRef.current;
+        lastChainIdRef.current = newChainId;
+        
+        // If there's already a pending timeout for a different chain, clear it
+        if (chainChangeTimeoutRef.current) {
+          clearTimeout(chainChangeTimeoutRef.current);
+          chainChangeTimeoutRef.current = null;
+        }
+        
+        // Debounce chain change to prevent multiple rapid fires
+        chainChangeTimeoutRef.current = setTimeout(async () => {
+          // Double-check we should still process (chain might have changed again)
+          if (lastChainIdRef.current !== newChainId) {
+            console.log('⏭️ Chain changed again before processing, skipping:', newChainId);
+            return;
+          }
+          
+          console.log('🔄 Chain changed:', chainIdHex, '→', newChainId);
+          setChainId(newChainId);
+          
+          // Recreate ethers provider when chain changes to avoid network mismatch errors
+          try {
+            const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
+            setProvider(newEthersProvider);
+            console.log('✅ Chain updated to:', newChainId, '- Provider recreated');
+          } catch (error) {
+            console.error('Error recreating provider on chain change:', error);
+            // Revert chainId on error
+            lastChainIdRef.current = previousChainId;
+          }
+          
+          chainChangeTimeoutRef.current = null;
+        }, 100); // 100ms debounce
+      };
 
-      wcProvider.on('disconnect', () => {
+      disconnectHandlerRef.current = () => {
         console.log('🔌 WalletConnect disconnected');
         handleDisconnect();
-      });
+      };
+
+      // Set up event listeners (only once per provider instance)
+      wcProvider.on('accountsChanged', accountsChangedHandlerRef.current);
+      wcProvider.on('chainChanged', chainChangedHandlerRef.current);
+      wcProvider.on('disconnect', disconnectHandlerRef.current);
+      
+      listenersSetupRef.current = true;
+      console.log('✅ Event listeners set up');
 
       // Update state
       setWalletAddress(address);
       setIsConnected(true);
       setProvider(ethersProvider);
       setChainId(network.chainId);
+      lastChainIdRef.current = network.chainId; // Track initial chain
       localStorage.setItem('walletConnected', 'true');
       setConnecting(false);
 
       console.log('✅ Wallet connected:', address);
       console.log('✅ Network:', network.chainId === 8453 ? 'Base Mainnet' : `Chain ${network.chainId}`);
+      
+      // Auto-switch to Base if not already on Base
+      if (network.chainId !== 8453) {
+        console.log(`🔄 Current network is ${network.chainId}, switching to Base (8453)...`);
+        pendingTargetChainRef.current = 8453; // Mark that we're switching to Base
+        setSwitchingNetwork(true);
+        
+        try {
+          await wcProvider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x2105' }], // Base mainnet (8453 in hex)
+          });
+          console.log('✅ Switched to Base network');
+          
+          // Optimistically update state to Base immediately after successful switch
+          // This prevents balance fetch from seeing the wrong network during timing window
+          try {
+            const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
+            setProvider(newEthersProvider);
+            setChainId(8453);
+            lastChainIdRef.current = 8453;
+            console.log('✅ Optimistically updated to Base (8453) - waiting for chainChanged confirmation');
+          } catch (optimisticError) {
+            console.warn('⚠️ Failed to optimistically update provider, will rely on chainChanged event:', optimisticError);
+          }
+        } catch (switchError) {
+          // Clear pending flag on error
+          pendingTargetChainRef.current = null;
+          setSwitchingNetwork(false);
+          
+          // If chain not added, try to add it
+          if (switchError.code === 4902) {
+            try {
+              console.log('➕ Base network not found, adding it...');
+              await wcProvider.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: '0x2105',
+                  chainName: 'Base',
+                  nativeCurrency: {
+                    name: 'Ethereum',
+                    symbol: 'ETH',
+                    decimals: 18
+                  },
+                  rpcUrls: ['https://base.llamarpc.com'],
+                  blockExplorerUrls: ['https://basescan.org']
+                }]
+              });
+              console.log('✅ Base network added and switched');
+              
+              // Optimistically update to Base after adding
+              try {
+                const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
+                setProvider(newEthersProvider);
+                setChainId(8453);
+                lastChainIdRef.current = 8453;
+                pendingTargetChainRef.current = null; // Clear after successful switch
+              } catch (optimisticError) {
+                console.warn('⚠️ Failed to optimistically update after add, will rely on chainChanged event:', optimisticError);
+              }
+              } catch (addError) {
+              console.warn('⚠️ Failed to add Base network:', addError);
+              pendingTargetChainRef.current = null;
+                setSwitchingNetwork(false);
+              // Continue anyway - user can manually switch later
+            }
+          } else if (switchError.code === 4001) {
+            console.warn('⚠️ User rejected network switch to Base');
+            pendingTargetChainRef.current = null;
+            setSwitchingNetwork(false);
+            // Continue anyway - user chose not to switch
+          } else {
+            console.warn('⚠️ Network switch error:', switchError);
+            pendingTargetChainRef.current = null;
+            setSwitchingNetwork(false);
+            // Continue anyway - connection still works
+          }
+        }
+      } else {
+        console.log('✅ Already on Base network');
+        pendingTargetChainRef.current = null; // Ensure no pending if already on Base
+        setSwitchingNetwork(false);
+      }
       
       return {
         success: true,
@@ -150,11 +340,50 @@ export const WalletProvider = ({ children }) => {
     setIsConnected(false);
     setChainId(null);
     setProvider(null);
-    localStorage.removeItem('walletConnected');
-    if (wcProviderRef.current && typeof wcProviderRef.current.removeAllListeners === 'function') {
-      wcProviderRef.current.removeAllListeners();
+    lastChainIdRef.current = null;
+    pendingTargetChainRef.current = null; // Clear pending chain switch
+    setSwitchingNetwork(false);
+    listenersSetupRef.current = false;
+    
+    if (chainChangeTimeoutRef.current) {
+      clearTimeout(chainChangeTimeoutRef.current);
+      chainChangeTimeoutRef.current = null;
+    }
+    
+    // Remove specific listeners
+    if (wcProviderRef.current) {
+      const provider = wcProviderRef.current;
+      const removeListener = (event, handler) => {
+        if (handler) {
+          // Try .off() first (EIP-1193 style)
+          if (typeof provider.off === 'function') {
+            provider.off(event, handler);
+          }
+          // Try .removeListener() (Node.js EventEmitter style)
+          else if (typeof provider.removeListener === 'function') {
+            provider.removeListener(event, handler);
+          }
+        }
+      };
+      
+      removeListener('accountsChanged', accountsChangedHandlerRef.current);
+      removeListener('chainChanged', chainChangedHandlerRef.current);
+      removeListener('disconnect', disconnectHandlerRef.current);
+      
+      // Fallback: remove all listeners if specific removal doesn't work
+      if (typeof provider.removeAllListeners === 'function') {
+        provider.removeAllListeners();
+      }
       wcProviderRef.current = null;
     }
+    
+    // Clear handler refs
+    accountsChangedHandlerRef.current = null;
+    chainChangedHandlerRef.current = null;
+    disconnectHandlerRef.current = null;
+    
+    localStorage.removeItem('walletConnected');
+    clearWalletConnectCache();
   };
 
   // Switch to Base mainnet
@@ -311,6 +540,7 @@ export const WalletProvider = ({ children }) => {
     connecting,
     provider,
     chainId,
+    switchingNetwork,
     walletType,
     connectWallet,
     disconnectWallet,
