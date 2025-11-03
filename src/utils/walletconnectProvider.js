@@ -23,9 +23,21 @@ export async function initWalletConnect() {
       }
     }
 
-    // If we have an existing provider instance but it's not enabled yet, try enabling it
-    if (cachedProvider && !cachedProvider.connected) {
+    // If we have an existing provider instance, check if it's already connected
+    if (cachedProvider) {
+      if (cachedProvider.connected) {
+        console.log('✅ WalletConnect: Existing provider already connected, reusing it');
+        return cachedProvider;
+      }
+      // Only try enabling if not connected (but this will open modal)
+      // Check if there are active sessions first
       try {
+        const sessions = cachedProvider.signer?.session?.values() || [];
+        if (sessions.length > 0) {
+          console.log('🔗 WalletConnect: Found active session, reusing without modal');
+          // Don't call enable() - just return the provider
+          return cachedProvider;
+        }
         console.log('🔗 WalletConnect: Enabling existing provider session...');
         await cachedProvider.enable();
         console.log('✅ WalletConnect: Existing provider enabled');
@@ -69,9 +81,40 @@ export async function initWalletConnect() {
       }
     });
     
-    console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    console.log('🔗 WalletConnect: Provider created, checking connection status...');
+    
+    // Check if already connected before calling enable() (which opens modal)
+    if (provider.connected) {
+      console.log('✅ WalletConnect: Provider already connected, skipping enable()');
+      cachedProvider = provider;
+      isInitializing = false;
+      return provider;
+    }
+    
+    // Only call enable() if not already connected (this opens the QR modal)
+    console.log('🔗 WalletConnect: Enabling connection...');
     await provider.enable();
     console.log('✅ WalletConnect: Provider enabled successfully');
+    
+    // Close the modal after successful connection (if it's still open)
+    // WalletConnect modal should auto-close, but we ensure it's closed
+    try {
+      // Wait a bit for the modal to auto-close
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Try to close the modal programmatically if it exists
+      const modalElement = document.querySelector('w3m-modal');
+      if (modalElement && modalElement.shadowRoot) {
+        const closeButton = modalElement.shadowRoot.querySelector('button[aria-label="Close"]');
+        if (closeButton) {
+          closeButton.click();
+          console.log('✅ WalletConnect: Modal closed programmatically');
+        }
+      }
+    } catch (modalCloseError) {
+      // Ignore errors - modal might already be closed
+      console.log('ℹ️ WalletConnect: Modal close attempt completed (may already be closed)');
+    }
     
     cachedProvider = provider;
     isInitializing = false;

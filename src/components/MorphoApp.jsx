@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
@@ -38,6 +38,9 @@ const VaultApp = ({ onShowToast, mode }) => {
   
   const [usdcBalance, setUsdcBalance] = useState("0");
   const [vaultBalance, setVaultBalance] = useState("0");
+  
+  // Track last fetch to prevent unnecessary refetches on tab switch
+  const lastFetchRef = useRef({ account: null, chainId: null });
   
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
@@ -126,6 +129,9 @@ const VaultApp = ({ onShowToast, mode }) => {
 
       setVaultBalance(formattedVaultBalance);
       console.log("✅ Balance fetch complete - USDC:", formattedUsdc, "Vault:", formattedVaultBalance);
+      
+      // Mark as fetched AFTER successful fetch (not before)
+      lastFetchRef.current = { account, chainId };
     } catch (error) {
       console.error("❌ Balance fetch error:", error);
       console.error("  - Error code:", error.code);
@@ -145,14 +151,35 @@ const VaultApp = ({ onShowToast, mode }) => {
     }
   }, [account, walletProvider, chainId]);
 
-  // Fetch balances on mount/account change (with debounce to prevent rapid calls)
+  // Fetch balances only when account or chainId actually changes - NOT on tab switch or provider object changes
+  // This prevents unnecessary refetches when switching between deposit/withdraw tabs
   useEffect(() => {
+    // Only fetch if we have all required data
+    if (!account || !walletProvider || chainId !== 8453) {
+      return;
+    }
+    
+    // Check if we've already fetched for this account/chainId combination
+    // IMPORTANT: Only skip if we've actually completed a fetch (ref is set AFTER fetch completes)
+    if (lastFetchRef.current.account === account && lastFetchRef.current.chainId === chainId) {
+      console.log('⏭️ Skipping balance fetch - already fetched for this account/chainId combination');
+      return; // Already fetched successfully, skip
+    }
+    
+    // DON'T update ref here - it will be updated AFTER successful fetch in fetchBalances()
+    // This ensures we only skip if the fetch actually completed
+    
+    // Small debounce to batch rapid changes
     const timeoutId = setTimeout(() => {
       fetchBalances();
-    }, 150); // Small delay to let provider settle after chain changes
+    }, 100); // Reduced from 150ms for faster response
     
     return () => clearTimeout(timeoutId);
-  }, [fetchBalances]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally only depend on account/chainId (not walletProvider or fetchBalances)
+    // walletProvider object reference may change but we track by account/chainId
+    // fetchBalances is memoized with useCallback and depends on these same values
+  }, [account, chainId]); // Removed walletProvider to prevent refetches on object reference changes
 
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
@@ -286,7 +313,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       setShowStatus(false);
       onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
 
-      // Refresh balances
+      // Refresh balances - reset fetch tracking to force refetch
+      lastFetchRef.current = { account: null, chainId: null };
       await fetchBalances();
       setAmount(""); // Clear input
 
@@ -374,7 +402,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       setShowStatus(false);
       onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
 
-      // Refresh balances
+      // Refresh balances - reset fetch tracking to force refetch
+      lastFetchRef.current = { account: null, chainId: null };
       await fetchBalances();
       setAmount(""); // Clear input
 

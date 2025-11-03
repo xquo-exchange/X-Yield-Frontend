@@ -39,7 +39,13 @@ export const WalletProvider = ({ children }) => {
       if (wasConnected === 'true') {
         try {
           console.log('🔄 Auto-reconnecting wallet...');
-          await connectWallet();
+          // Only auto-reconnect if we're not already connected
+          // This prevents re-opening the modal after a successful connection
+          if (!isConnected) {
+            await connectWallet();
+          } else {
+            console.log('✅ Already connected, skipping auto-reconnect');
+          }
         } catch (error) {
           console.error('Auto-reconnect failed:', error);
           localStorage.removeItem('walletConnected');
@@ -82,11 +88,149 @@ export const WalletProvider = ({ children }) => {
         : await initWalletConnect();
       wcProviderRef.current = wcProvider;
 
-      // Create ethers provider
+      // CRITICAL: Set up chainChanged handler FIRST to block Ethereum events
+      // This must happen BEFORE we check the chain or switch
+      chainChangedHandlerRef.current = async (chainIdHex) => {
+        const newChainId = parseInt(chainIdHex, 16);
+        
+        // CRITICAL: If we're actively switching to Base, aggressively ignore Ethereum (1) events
+        // This prevents stale Ethereum events from overriding our Base switch
+        if (pendingTargetChainRef.current === 8453 && newChainId === 1) {
+          console.log('⏭️ Ignoring Ethereum chain event during Base switch (stale event)');
+          return; // Completely ignore Ethereum events while switching to Base
+        }
+        
+        // If we're in a pending switch and this event isn't the target, ignore it
+        if (pendingTargetChainRef.current && newChainId !== pendingTargetChainRef.current) {
+          console.log('⏭️ Ignoring non-target chain change during switch:', newChainId, '(waiting for', pendingTargetChainRef.current, ')');
+          return;
+        }
+        
+        // If it matches the pending target, clear the pending flag
+        if (pendingTargetChainRef.current === newChainId) {
+          console.log('✅ Chain change matches target, clearing pending flag');
+          pendingTargetChainRef.current = null;
+          setSwitchingNetwork(false);
+        }
+        
+        // Immediate check: if we already processed this chain, silently return
+        if (lastChainIdRef.current === newChainId) {
+          return; // Silent skip - duplicate event
+        }
+        
+        // Mark as processing immediately to prevent concurrent handlers
+        const previousChainId = lastChainIdRef.current;
+        lastChainIdRef.current = newChainId;
+        
+        // If there's already a pending timeout for a different chain, clear it
+        if (chainChangeTimeoutRef.current) {
+          clearTimeout(chainChangeTimeoutRef.current);
+          chainChangeTimeoutRef.current = null;
+        }
+        
+        // Debounce chain change to prevent multiple rapid fires
+        chainChangeTimeoutRef.current = setTimeout(async () => {
+          if (lastChainIdRef.current !== newChainId) {
+            console.log('⏭️ Chain changed again before processing, skipping:', newChainId);
+            return;
+          }
+          
+          console.log('🔄 Chain changed:', chainIdHex, '→', newChainId);
+          setChainId(newChainId);
+          
+          // Recreate ethers provider when chain changes
+          try {
+            const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
+            setProvider(newEthersProvider);
+            console.log('✅ Chain updated to:', newChainId, '- Provider recreated');
+          } catch (error) {
+            console.error('Error recreating provider on chain change:', error);
+            lastChainIdRef.current = previousChainId;
+          }
+          
+          chainChangeTimeoutRef.current = null;
+        }, 100);
+      };
+      
+      // Register chainChanged handler IMMEDIATELY to block Ethereum events
+      wcProvider.on('chainChanged', chainChangedHandlerRef.current);
+      
+      // CRITICAL: Switch to Base IMMEDIATELY after connection, BEFORE creating ethers provider
+      // This prevents Ethereum from ever being seen by the user
+      // Set pending flag IMMEDIATELY to block all Ethereum events
+      pendingTargetChainRef.current = 8453;
+      lastChainIdRef.current = 8453; // Set optimistically to Base
+      setSwitchingNetwork(true);
+      
+      try {
+        // Get current chain from WalletConnect provider directly (faster than ethers)
+        const currentChainId = await wcProvider.request({ method: 'eth_chainId' });
+        const currentChainIdNum = parseInt(currentChainId, 16);
+        
+        console.log(`🔍 Initial chain detected: ${currentChainIdNum}`);
+        
+        if (currentChainIdNum !== 8453) {
+          console.log('🔄 Switching to Base BEFORE creating ethers provider...');
+          // Switch to Base IMMEDIATELY - don't wait
+          await wcProvider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x2105' }], // Base mainnet (8453 in hex)
+          });
+          console.log('✅ Switched to Base - waiting for confirmation...');
+          
+          // Wait for chain to actually switch (with timeout)
+          let retries = 5;
+          while (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const newChainId = await wcProvider.request({ method: 'eth_chainId' });
+            const newChainIdNum = parseInt(newChainId, 16);
+            if (newChainIdNum === 8453) {
+              console.log('✅ Confirmed on Base network');
+              break;
+            }
+            retries--;
+            console.log(`⏳ Waiting for Base switch... (${retries} retries left)`);
+          }
+        } else {
+          console.log('✅ Already on Base network');
+        }
+      } catch (switchError) {
+        // If chain not added, try to add it
+        if (switchError.code === 4902) {
+          console.log('➕ Base network not found, adding it...');
+          await wcProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x2105',
+              chainName: 'Base',
+              nativeCurrency: {
+                name: 'Ethereum',
+                symbol: 'ETH',
+                decimals: 18
+              },
+              rpcUrls: ['https://base.llamarpc.com'],
+              blockExplorerUrls: ['https://basescan.org']
+            }]
+          });
+          // Wait for network to be added
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          console.warn('⚠️ Network switch error:', switchError);
+          // Continue anyway - will show warning but still connect
+        }
+      }
+
+      // NOW create ethers provider AFTER we've switched to Base
+      // This ensures ethers provider is created with Base network
       const ethersProvider = new ethers.providers.Web3Provider(wcProvider);
       const signer = ethersProvider.getSigner();
       const address = await signer.getAddress();
       const network = await ethersProvider.getNetwork();
+      
+      // Verify we're on Base
+      if (network.chainId !== 8453) {
+        console.warn(`⚠️ Still not on Base after switch (${network.chainId}), but continuing...`);
+      }
 
       // Remove old listeners if they exist (prevents duplicates)
       // Only remove if it's the same provider instance
@@ -121,177 +265,40 @@ export const WalletProvider = ({ children }) => {
         }
       };
 
-      chainChangedHandlerRef.current = async (chainIdHex) => {
-        const newChainId = parseInt(chainIdHex, 16);
-        
-        // If we're in a pending switch and this event isn't the target, ignore it
-        // This prevents WalletConnect from switching us back during network change
-        if (pendingTargetChainRef.current && newChainId !== pendingTargetChainRef.current) {
-          console.log('⏭️ Ignoring non-target chain change during switch:', newChainId, '(waiting for', pendingTargetChainRef.current, ')');
-          return;
-        }
-        
-        // If it matches the pending target, clear the pending flag
-        if (pendingTargetChainRef.current === newChainId) {
-          console.log('✅ Chain change matches target, clearing pending flag');
-          pendingTargetChainRef.current = null;
-          setSwitchingNetwork(false);
-        }
-        
-        // Immediate check: if we already processed this chain, silently return
-        // Set it immediately to prevent other handlers (if any) from processing
-        if (lastChainIdRef.current === newChainId) {
-          return; // Silent skip - duplicate event
-        }
-        
-        // Mark as processing immediately to prevent concurrent handlers
-        const previousChainId = lastChainIdRef.current;
-        lastChainIdRef.current = newChainId;
-        
-        // If there's already a pending timeout for a different chain, clear it
-        if (chainChangeTimeoutRef.current) {
-          clearTimeout(chainChangeTimeoutRef.current);
-          chainChangeTimeoutRef.current = null;
-        }
-        
-        // Debounce chain change to prevent multiple rapid fires
-        chainChangeTimeoutRef.current = setTimeout(async () => {
-          // Double-check we should still process (chain might have changed again)
-          if (lastChainIdRef.current !== newChainId) {
-            console.log('⏭️ Chain changed again before processing, skipping:', newChainId);
-            return;
-          }
-          
-          console.log('🔄 Chain changed:', chainIdHex, '→', newChainId);
-          setChainId(newChainId);
-          
-          // Recreate ethers provider when chain changes to avoid network mismatch errors
-          try {
-            const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
-            setProvider(newEthersProvider);
-            console.log('✅ Chain updated to:', newChainId, '- Provider recreated');
-          } catch (error) {
-            console.error('Error recreating provider on chain change:', error);
-            // Revert chainId on error
-            lastChainIdRef.current = previousChainId;
-          }
-          
-          chainChangeTimeoutRef.current = null;
-        }, 100); // 100ms debounce
-      };
+      // chainChanged handler is set up above, before the switch
 
       disconnectHandlerRef.current = () => {
         console.log('🔌 WalletConnect disconnected');
         handleDisconnect();
       };
 
-      // Set up event listeners (only once per provider instance)
+      // Set up remaining event listeners (chainChanged already set up above)
       wcProvider.on('accountsChanged', accountsChangedHandlerRef.current);
-      wcProvider.on('chainChanged', chainChangedHandlerRef.current);
+      // chainChanged already registered above to block Ethereum events early
       wcProvider.on('disconnect', disconnectHandlerRef.current);
       
       listenersSetupRef.current = true;
       console.log('✅ Event listeners set up');
 
-      // Update state
+      // Update state with Base network - we already switched above
+      // User never sees Ethereum because we switched BEFORE creating ethers provider
       setWalletAddress(address);
       setIsConnected(true);
       setProvider(ethersProvider);
-      setChainId(network.chainId);
-      lastChainIdRef.current = network.chainId; // Track initial chain
+      setChainId(8453); // Always set to Base - we switched above
+      lastChainIdRef.current = 8453;
+      pendingTargetChainRef.current = null;
+      setSwitchingNetwork(false);
+      console.log('✅ Connected directly to Base (8453) - Ethereum never shown');
+      
       localStorage.setItem('walletConnected', 'true');
       setConnecting(false);
-
       console.log('✅ Wallet connected:', address);
-      console.log('✅ Network:', network.chainId === 8453 ? 'Base Mainnet' : `Chain ${network.chainId}`);
-      
-      // Auto-switch to Base if not already on Base
-      if (network.chainId !== 8453) {
-        console.log(`🔄 Current network is ${network.chainId}, switching to Base (8453)...`);
-        pendingTargetChainRef.current = 8453; // Mark that we're switching to Base
-        setSwitchingNetwork(true);
-        
-        try {
-          await wcProvider.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x2105' }], // Base mainnet (8453 in hex)
-          });
-          console.log('✅ Switched to Base network');
-          
-          // Optimistically update state to Base immediately after successful switch
-          // This prevents balance fetch from seeing the wrong network during timing window
-          try {
-            const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
-            setProvider(newEthersProvider);
-            setChainId(8453);
-            lastChainIdRef.current = 8453;
-            console.log('✅ Optimistically updated to Base (8453) - waiting for chainChanged confirmation');
-          } catch (optimisticError) {
-            console.warn('⚠️ Failed to optimistically update provider, will rely on chainChanged event:', optimisticError);
-          }
-        } catch (switchError) {
-          // Clear pending flag on error
-          pendingTargetChainRef.current = null;
-          setSwitchingNetwork(false);
-          
-          // If chain not added, try to add it
-          if (switchError.code === 4902) {
-            try {
-              console.log('➕ Base network not found, adding it...');
-              await wcProvider.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: '0x2105',
-                  chainName: 'Base',
-                  nativeCurrency: {
-                    name: 'Ethereum',
-                    symbol: 'ETH',
-                    decimals: 18
-                  },
-                  rpcUrls: ['https://base.llamarpc.com'],
-                  blockExplorerUrls: ['https://basescan.org']
-                }]
-              });
-              console.log('✅ Base network added and switched');
-              
-              // Optimistically update to Base after adding
-              try {
-                const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
-                setProvider(newEthersProvider);
-                setChainId(8453);
-                lastChainIdRef.current = 8453;
-                pendingTargetChainRef.current = null; // Clear after successful switch
-              } catch (optimisticError) {
-                console.warn('⚠️ Failed to optimistically update after add, will rely on chainChanged event:', optimisticError);
-              }
-              } catch (addError) {
-              console.warn('⚠️ Failed to add Base network:', addError);
-              pendingTargetChainRef.current = null;
-                setSwitchingNetwork(false);
-              // Continue anyway - user can manually switch later
-            }
-          } else if (switchError.code === 4001) {
-            console.warn('⚠️ User rejected network switch to Base');
-            pendingTargetChainRef.current = null;
-            setSwitchingNetwork(false);
-            // Continue anyway - user chose not to switch
-          } else {
-            console.warn('⚠️ Network switch error:', switchError);
-            pendingTargetChainRef.current = null;
-            setSwitchingNetwork(false);
-            // Continue anyway - connection still works
-          }
-        }
-      } else {
-        console.log('✅ Already on Base network');
-        pendingTargetChainRef.current = null; // Ensure no pending if already on Base
-        setSwitchingNetwork(false);
-      }
       
       return {
         success: true,
         address,
-        chainId: network.chainId,
+        chainId: lastChainIdRef.current || 8453, // Return actual chainId (should be Base now)
       };
     } catch (error) {
       setConnecting(false);
