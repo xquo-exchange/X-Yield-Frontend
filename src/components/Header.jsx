@@ -5,7 +5,7 @@ const Header = () => {
   return (
     <div className="header-container">
       <div className="header-box">
-        Morpho Protocol on Base
+        X-QUO Yield on Base
       </div>
     </div>
   );

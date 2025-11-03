@@ -1,5 +1,5 @@
 /* Main Container */
-.morpho-container {
+.vault-container {
   width: 100%;
   max-width: 600px;
   background: rgba(255, 255, 255, 0.02);
@@ -62,27 +62,27 @@
 }
 
 /* Token Box */
-.morpho-token-box {
+.vault-token-box {
   background: rgba(255, 255, 255, 0.03);
   border-radius: 16px;
   padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.morpho-token-header {
+.vault-token-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
 }
 
-.morpho-balance-label {
+.vault-balance-label {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
   font-weight: 500;
 }
 
-.morpho-max-button {
+.vault-max-button {
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.5);
@@ -93,18 +93,18 @@
   padding: 4px 8px;
 }
 
-.morpho-max-button:hover {
+.vault-max-button:hover {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.morpho-input-row {
+.vault-input-row {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 12px;
 }
 
-.morpho-amount-input {
+.vault-amount-input {
   background: transparent;
   border: none;
   color: white;
@@ -115,11 +115,11 @@
   font-family: 'Inter', sans-serif;
 }
 
-.morpho-amount-input::placeholder {
+.vault-amount-input::placeholder {
   color: rgba(255, 255, 255, 0.15);
 }
 
-.morpho-usd-value {
+.vault-usd-value {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.3);
 }
@@ -253,7 +253,7 @@
 }
 
 /* Action Button */
-.morpho-action-button {
+.vault-action-button {
   width: 100%;
   background: #ffffff;
   border: none;
@@ -267,19 +267,19 @@
   font-family: 'Inter', sans-serif;
 }
 
-.morpho-action-button:hover:not(:disabled) {
+.vault-action-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.9);
   transform: scale(1.01);
 }
 
-.morpho-action-button:disabled {
+.vault-action-button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
   transform: none;
 }
 
 /* Warning Modal */
-.morpho-warning {
+.vault-warning {
   position: fixed;
   top: 0;
   left: 0;
@@ -292,7 +292,7 @@
   z-index: 10000;
 }
 
-.morpho-warning__content {
+.vault-warning__content {
   background-color: #1e1e1e;
   border-radius: 16px;
   padding: 32px;
@@ -304,20 +304,20 @@
   gap: 16px;
 }
 
-.morpho-warning__title {
+.vault-warning__title {
   color: white;
   font-size: 20px;
   font-weight: 600;
   margin: 0;
 }
 
-.morpho-warning__text {
+.vault-warning__text {
   color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
   margin: 0;
 }
 
-.morpho-warning__actions {
+.vault-warning__actions {
   display: flex;
   gap: 12px;
   margin-top: 8px;
@@ -437,7 +437,7 @@
 
 /* Responsive Styles */
 @media (max-width: 768px) {
-  .morpho-container {
+  .vault-container {
     padding: 24px;
     border-radius: 20px;
   }
@@ -453,7 +453,7 @@
 }
 
 @media (max-width: 640px) {
-  .morpho-container {
+  .vault-container {
     padding: 20px;
   }
   
@@ -473,7 +473,7 @@
 }
 
 @media (max-width: 480px) {
-  .morpho-container {
+  .vault-container {
     padding: 16px;
     border-radius: 16px;
   }
@@ -494,13 +494,13 @@
     font-size: 16px;
   }
   
-  .morpho-amount-input {
+  .vault-amount-input {
     font-size: 24px;
   }
 }
 
 @media (max-width: 390px) {
-  .morpho-container {
+  .vault-container {
     padding: 14px;
     gap: 20px;
   }
@@ -517,13 +517,13 @@
     font-size: 15px;
   }
   
-  .morpho-amount-input {
+  .vault-amount-input {
     font-size: 20px;
   }
 }
 
 @media (max-width: 320px) {
-  .morpho-container {
+  .vault-container {
     padding: 10px;
     gap: 14px;
     max-width: 100%;
@@ -545,7 +545,7 @@
     font-size: 13px;
   }
   
-  .morpho-amount-input {
+  .vault-amount-input {
     font-size: 16px;
   }
 }
