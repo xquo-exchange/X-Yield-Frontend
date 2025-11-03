@@ -5,7 +5,7 @@ import { useWallet } from "../hooks/useWallet";
 import "./MorphoApp.css";
 
 // Placeholder Morpho vault address on Base (replace with actual address)
-const MORPHO_VAULT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const MORPHO_VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
 
 const MorphoApp = ({ onShowToast, mode }) => {
@@ -159,7 +159,14 @@ const MorphoApp = ({ onShowToast, mode }) => {
         ],
         signer
       );
-
+      const metamorphoContract = new ethers.Contract(
+        MORPHO_VAULT_ADDRESS, 
+        [
+          'function deposit(uint256 amount, address receiver) returns (uint256)'
+        ], 
+        signer
+      );
+      
       const decimals = await usdcContract.decimals();
       const balance = await usdcContract.balanceOf(account);
       const requiredAmount = ethers.utils.parseUnits(amount, decimals);
@@ -172,10 +179,9 @@ const MorphoApp = ({ onShowToast, mode }) => {
       }
 
       setStatus("Approving USDC...");
-      
-      // TODO: Replace with actual Morpho vault contract interaction
-      // For now, this is placeholder logic
-      onShowToast?.("error", "Morpho integration pending. This is a demo interface showing the UX flow.");
+
+      await usdcContract.approve(metamorphoTokenAddress, amount);
+      const shares = await metamorphoContract.deposit(amount, signer.address); // Provider address è l'indirizzo del wallet che richiede la deposit (modificato) 
       
       console.log("📝 Deposit simulation:");
       console.log("  - Amount:", amount, "USDC");
