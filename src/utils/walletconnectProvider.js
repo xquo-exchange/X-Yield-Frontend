@@ -6,10 +6,21 @@ let isInitializing = false;
 
 export async function initWalletConnect() {
   try {
-    // Return cached provider if already connected
-    if (cachedProvider && cachedProvider.connected) {
-      console.log('🔗 WalletConnect: Using cached provider');
-      return cachedProvider;
+    // 🧹 ALWAYS START FRESH - Don't reuse cached providers
+    // This ensures we get a clean connection every time
+    if (cachedProvider) {
+      console.log('🧹 Clearing existing cached provider for fresh start...');
+      try {
+        if (cachedProvider.connected) {
+          await cachedProvider.disconnect();
+        }
+        if (typeof cachedProvider.removeAllListeners === 'function') {
+          cachedProvider.removeAllListeners();
+        }
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      cachedProvider = null;
     }
 
     // Prevent concurrent initializations
@@ -18,25 +29,10 @@ export async function initWalletConnect() {
       while (isInitializing) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      if (cachedProvider && cachedProvider.connected) {
-        return cachedProvider;
-      }
-    }
-
-    // If we have an existing provider instance but it's not enabled yet, try enabling it
-    if (cachedProvider && !cachedProvider.connected) {
-      try {
-        console.log('🔗 WalletConnect: Enabling existing provider session...');
-        await cachedProvider.enable();
-        console.log('✅ WalletConnect: Existing provider enabled');
-        return cachedProvider;
-      } catch (e) {
-        console.warn('⚠️ WalletConnect: Existing provider enable failed, reinitializing...', e);
-      }
     }
 
     isInitializing = true;
-    console.log('🔗 WalletConnect: Initializing provider for Base...');
+    console.log('🔗 WalletConnect: Initializing fresh provider for Base...');
     
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
@@ -83,9 +79,56 @@ export async function initWalletConnect() {
   }
 }
 
-// Function to clear the cached provider
+// Function to clear the cached provider - THOROUGH CLEANUP
 export function clearWalletConnectCache() {
-  cachedProvider = null;
+  console.log('🧹 Clearing WalletConnect cache...');
+  
+  // Disconnect and cleanup existing provider if it exists
+  if (cachedProvider) {
+    try {
+      // Remove all event listeners
+      if (typeof cachedProvider.removeAllListeners === 'function') {
+        cachedProvider.removeAllListeners();
+      }
+      
+      // Disconnect if connected
+      if (cachedProvider.connected) {
+        cachedProvider.disconnect().catch(() => {
+          // Ignore disconnect errors during cleanup
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ Error during provider cleanup:', e);
+    }
+    
+    cachedProvider = null;
+  }
+  
   isInitializing = false;
+  
+  // Also clear any WalletConnect localStorage items
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const keysToRemove = [];
+    Object.keys(localStorage).forEach(key => {
+      if (
+        key.includes('wc@') || 
+        key.includes('WalletConnect') ||
+        key.includes('WALLETCONNECT') ||
+        key.startsWith('wc-')
+      ) {
+        keysToRemove.push(key);
+      }
+    });
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {
+        // Ignore errors
+      }
+    });
+  }
+  
+  console.log('✅ WalletConnect cache cleared');
 }
 
