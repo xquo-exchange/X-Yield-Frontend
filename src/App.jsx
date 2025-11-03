@@ -3,7 +3,6 @@ import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
 import Orb from "./components/Orb";
 import Navbar from "./components/Navbar";
-// import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
