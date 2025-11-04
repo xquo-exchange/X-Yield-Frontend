@@ -31,7 +31,7 @@ export async function initWalletConnect() {
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
       chains: [8453], // Base mainnet
-      showQrModal: true,
+      showQrModal: true, // Show QR for initial connections, but not during network switches
       qrModalOptions: {
         themeMode: "dark",
         themeVariables: {
@@ -55,7 +55,7 @@ export async function initWalletConnect() {
         ]
       },
       rpcMap: {
-        8453: "https://base.llamarpc.com" // Base mainnet RPC
+        8453: "https://mainnet.base.org" // Base mainnet RPC (official, fastest)
       }
     });
     
@@ -75,26 +75,6 @@ export async function initWalletConnect() {
         console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
         throw error;
       }
-    }
-    
-    // Close the modal after successful connection (if it's still open)
-    // WalletConnect modal should auto-close, but we ensure it's closed
-    try {
-      // Wait a bit for the modal to auto-close
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try to close the modal programmatically if it exists
-      const modalElement = document.querySelector('w3m-modal');
-      if (modalElement && modalElement.shadowRoot) {
-        const closeButton = modalElement.shadowRoot.querySelector('button[aria-label="Close"]');
-        if (closeButton) {
-          closeButton.click();
-          console.log('✅ WalletConnect: Modal closed programmatically');
-        }
-      }
-    } catch (modalCloseError) {
-      // Ignore errors - modal might already be closed
-      console.log('ℹ️ WalletConnect: Modal close attempt completed (may already be closed)');
     }
     
     cachedProvider = provider;
@@ -155,5 +135,46 @@ export function clearWalletConnectCache() {
   }
   
   console.log('✅ WalletConnect cache cleared');
+}
+
+// Forcefully close WalletConnect modal - call this during chain changes
+export function closeWalletConnectModal() {
+  try {
+    // Close WalletConnect v2 modal using multiple selectors
+    const modalSelectors = [
+      'w3m-modal',
+      '[data-wcm-modal]',
+      '.walletconnect-modal',
+      'walletconnect-modal',
+      '#walletconnect-wrapper'
+    ];
+    
+    for (const selector of modalSelectors) {
+      const modal = document.querySelector(selector);
+      if (modal) {
+        // Try to close via shadow DOM
+        if (modal.shadowRoot) {
+          const closeButton = modal.shadowRoot.querySelector('button[aria-label="Close"], button[aria-label="close"], .w3m-modal-close, button.close');
+          if (closeButton) {
+            closeButton.click();
+            console.log('✅ WalletConnect modal closed via shadow DOM');
+            return;
+          }
+        }
+        
+        // Try to remove from DOM
+        modal.remove();
+        console.log('✅ WalletConnect modal removed from DOM');
+      }
+    }
+    
+    // Try to close via WalletConnect provider API if available
+    if (cachedProvider && typeof cachedProvider.closeModal === 'function') {
+      cachedProvider.closeModal();
+      console.log('✅ WalletConnect modal closed via provider API');
+    }
+  } catch (error) {
+    // Silently fail - modal might already be closed
+  }
 }
 
