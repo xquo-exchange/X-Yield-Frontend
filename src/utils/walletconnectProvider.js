@@ -5,51 +5,29 @@ let cachedProvider = null;
 let isInitializing = false;
 
 export async function initWalletConnect() {
-  try {
-    // Return cached provider if already connected
+  // Prevent concurrent initializations - return early if already initializing
+  if (isInitializing) {
+    console.log('🔗 WalletConnect: Already initializing, waiting...');
+    while (isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    // After initialization completes, return the cached provider if it exists
     if (cachedProvider && cachedProvider.connected) {
-      console.log('🔗 WalletConnect: Using cached provider');
       return cachedProvider;
     }
+  }
 
-    // Prevent concurrent initializations
-    if (isInitializing) {
-      console.log('🔗 WalletConnect: Waiting for initialization to complete...');
-      while (isInitializing) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      if (cachedProvider && cachedProvider.connected) {
-        return cachedProvider;
-      }
-    }
+  // Check if we have an existing connected provider - return it without showing QR
+  if (cachedProvider && cachedProvider.connected) {
+    console.log('🔗 WalletConnect: Using existing connected provider (no QR needed)');
+    return cachedProvider;
+  }
 
-    // If we have an existing provider instance, check if it's already connected
-    if (cachedProvider) {
-      if (cachedProvider.connected) {
-        console.log('✅ WalletConnect: Existing provider already connected, reusing it');
-        return cachedProvider;
-      }
-      // Only try enabling if not connected (but this will open modal)
-      // Check if there are active sessions first
-      try {
-        const sessions = cachedProvider.signer?.session?.values() || [];
-        if (sessions.length > 0) {
-          console.log('🔗 WalletConnect: Found active session, reusing without modal');
-          // Don't call enable() - just return the provider
-          return cachedProvider;
-        }
-        console.log('🔗 WalletConnect: Enabling existing provider session...');
-        await cachedProvider.enable();
-        console.log('✅ WalletConnect: Existing provider enabled');
-        return cachedProvider;
-      } catch (e) {
-        console.warn('⚠️ WalletConnect: Existing provider enable failed, reinitializing...', e);
-      }
-    }
-
-    isInitializing = true;
-    console.log('🔗 WalletConnect: Initializing provider for Base...');
-    
+  isInitializing = true;
+  console.log('🔗 WalletConnect: Initializing provider for Base...');
+  
+  try {
+    // Initialize provider - this will check for existing sessions in localStorage
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
       chains: [8453], // Base mainnet
@@ -81,20 +59,14 @@ export async function initWalletConnect() {
       }
     });
     
-    console.log('🔗 WalletConnect: Provider created, checking connection status...');
-    
-    // Check if already connected before calling enable() (which opens modal)
-    if (provider.connected) {
-      console.log('✅ WalletConnect: Provider already connected, skipping enable()');
-      cachedProvider = provider;
-      isInitializing = false;
-      return provider;
+    // Only enable (show QR) if not already connected
+    if (!provider.connected) {
+      console.log('🔗 WalletConnect: Provider created, enabling connection...');
+      await provider.enable();
+      console.log('✅ WalletConnect: Provider enabled successfully');
+    } else {
+      console.log('✅ WalletConnect: Provider already connected (no QR needed)');
     }
-    
-    // Only call enable() if not already connected (this opens the QR modal)
-    console.log('🔗 WalletConnect: Enabling connection...');
-    await provider.enable();
-    console.log('✅ WalletConnect: Provider enabled successfully');
     
     // Close the modal after successful connection (if it's still open)
     // WalletConnect modal should auto-close, but we ensure it's closed
@@ -126,9 +98,35 @@ export async function initWalletConnect() {
   }
 }
 
-// Function to clear the cached provider
+// Function to clear the cached provider - THOROUGH CLEANUP
 export function clearWalletConnectCache() {
-  cachedProvider = null;
+  console.log('🧹 Clearing WalletConnect cache...');
+  
+  // Disconnect and cleanup existing provider if it exists
+  if (cachedProvider) {
+    try {
+      // Remove all event listeners
+      if (typeof cachedProvider.removeAllListeners === 'function') {
+        cachedProvider.removeAllListeners();
+      }
+      
+      // Disconnect if connected
+      if (cachedProvider.connected) {
+        cachedProvider.disconnect().catch(() => {
+          // Ignore disconnect errors during cleanup
+        });
+      }
+    } catch (e) {
+      console.warn('⚠️ Error during provider cleanup:', e);
+    }
+    
+    cachedProvider = null;
+  }
+  
   isInitializing = false;
+  
+  // Don't clear WalletConnect localStorage - let it persist sessions
+  // Only clear if explicitly disconnecting (handled in handleDisconnect)
+  console.log('✅ WalletConnect cache cleared');
 }
 

@@ -20,6 +20,9 @@ export const WalletProvider = ({ children }) => {
   const chainChangedHandlerRef = useRef(null);
   const disconnectHandlerRef = useRef(null);
   const pendingTargetChainRef = useRef(null);
+  const lastAccountRef = useRef(null);
+  const accountChangeTimeoutRef = useRef(null);
+  const chainChangeProcessingRef = useRef(false);
 
   // Version check and auto-reconnect on mount
   useEffect(() => {
@@ -35,21 +38,24 @@ export const WalletProvider = ({ children }) => {
     }
     
     const autoConnect = async () => {
+      // Only auto-reconnect if explicitly marked as connected
+      // This prevents stale connections from persisting
       const wasConnected = localStorage.getItem('walletConnected');
       if (wasConnected === 'true') {
         try {
           console.log('🔄 Auto-reconnecting wallet...');
-          // Only auto-reconnect if we're not already connected
-          // This prevents re-opening the modal after a successful connection
-          if (!isConnected) {
-            await connectWallet();
-          } else {
-            console.log('✅ Already connected, skipping auto-reconnect');
-          }
+          // Clear everything first to ensure fresh connection
+          clearWalletConnectCache();
+          await connectWallet();
         } catch (error) {
           console.error('Auto-reconnect failed:', error);
+          // Clear on failure to prevent retry loops
           localStorage.removeItem('walletConnected');
+          clearWalletConnectCache();
         }
+      } else {
+        // Make sure cache is clear if not auto-connecting
+        clearWalletConnectCache();
       }
     };
 
@@ -72,20 +78,107 @@ export const WalletProvider = ({ children }) => {
     if (connecting) {
       return { success: false, error: 'ALREADY_CONNECTING', message: 'Already connecting...' };
     }
-    if (isConnected && wcProviderRef.current && wcProviderRef.current.connected) {
-      return { success: true, address: walletAddress, chainId };
+
+    // Check if already connected - reuse existing provider without showing QR
+    if (wcProviderRef.current && wcProviderRef.current.connected && isConnected && walletAddress) {
+      console.log('✅ Already connected, reusing existing provider');
+      return {
+        success: true,
+        address: walletAddress,
+        chainId: chainId,
+      };
     }
 
     setConnecting(true);
+    
     try {
       console.log('🔗 Initializing WalletConnect for Base...');
-      // If we already have a provider and it's connected, reuse it
-      if (wcProviderRef.current && wcProviderRef.current.connected) {
-        console.log('🔗 Reusing existing WalletConnect session');
+      
+      // Check for existing provider first - don't clear if we can reuse it
+      let wcProvider = wcProviderRef.current;
+      
+      if (!wcProvider || !wcProvider.connected) {
+        // Only clear if we need a fresh connection
+        console.log('🧹 Clearing wallet state for fresh connection...');
+        
+        // Clear all state first
+        setWalletAddress(null);
+        setIsConnected(false);
+        setChainId(null);
+        setProvider(null);
+        setSwitchingNetwork(false);
+        
+    // Clear all refs
+    lastChainIdRef.current = null;
+    pendingTargetChainRef.current = null;
+    listenersSetupRef.current = false;
+    lastAccountRef.current = null;
+    chainChangeProcessingRef.current = false;
+    
+    // Clear timeouts if exist
+    if (chainChangeTimeoutRef.current) {
+      clearTimeout(chainChangeTimeoutRef.current);
+      chainChangeTimeoutRef.current = null;
+    }
+    if (accountChangeTimeoutRef.current) {
+      clearTimeout(accountChangeTimeoutRef.current);
+      accountChangeTimeoutRef.current = null;
+    }
+        
+        // Remove old event listeners if provider exists
+        if (wcProviderRef.current) {
+          try {
+            const provider = wcProviderRef.current;
+            const removeListener = (event, handler) => {
+              if (handler) {
+                if (typeof provider.off === 'function') {
+                  provider.off(event, handler);
+                } else if (typeof provider.removeListener === 'function') {
+                  provider.removeListener(event, handler);
+                }
+              }
+            };
+            
+            removeListener('accountsChanged', accountsChangedHandlerRef.current);
+            removeListener('chainChanged', chainChangedHandlerRef.current);
+            removeListener('disconnect', disconnectHandlerRef.current);
+            
+            if (typeof provider.removeAllListeners === 'function') {
+              provider.removeAllListeners();
+            }
+            
+            // Disconnect the old provider if connected
+            if (provider.connected) {
+              try {
+                await provider.disconnect();
+              } catch (e) {
+                // Ignore disconnect errors
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Error cleaning up old provider:', e);
+          }
+          
+          wcProviderRef.current = null;
+        }
+        
+        // Clear handler refs
+        accountsChangedHandlerRef.current = null;
+        chainChangedHandlerRef.current = null;
+        disconnectHandlerRef.current = null;
+        
+        // Clear WalletConnect cache
+        clearWalletConnectCache();
+        
+        // Clear our app's localStorage items (but NOT WalletConnect session storage)
+        localStorage.removeItem('walletConnected');
+        
+        // Get fresh provider
+        wcProvider = await initWalletConnect();
+      } else {
+        console.log('✅ Reusing existing connected provider (no QR needed)');
       }
-      const wcProvider = wcProviderRef.current && wcProviderRef.current.connected
-        ? wcProviderRef.current
-        : await initWalletConnect();
+      
       wcProviderRef.current = wcProvider;
 
       // CRITICAL: Set up chainChanged handler FIRST to block Ethereum events
@@ -256,16 +349,97 @@ export const WalletProvider = ({ children }) => {
 
       // Create new listener functions
       accountsChangedHandlerRef.current = (accounts) => {
-        console.log('🔄 Accounts changed:', accounts);
-        if (accounts.length > 0) {
-          setWalletAddress(accounts[0]);
-          setIsConnected(true);
-        } else {
-          handleDisconnect();
+        const newAccount = accounts.length > 0 ? accounts[0] : null;
+        
+        // Ignore duplicate account changes
+        if (newAccount === lastAccountRef.current) {
+          return; // Silent skip - duplicate event
         }
+        
+        lastAccountRef.current = newAccount;
+        
+        // Debounce account changes to prevent rapid-fire duplicates
+        if (accountChangeTimeoutRef.current) {
+          clearTimeout(accountChangeTimeoutRef.current);
+        }
+        
+        accountChangeTimeoutRef.current = setTimeout(() => {
+          if (accounts.length > 0) {
+            setWalletAddress(accounts[0]);
+            setIsConnected(true);
+          } else {
+            handleDisconnect();
+          }
+          accountChangeTimeoutRef.current = null;
+        }, 100);
       };
 
-      // chainChanged handler is set up above, before the switch
+      chainChangedHandlerRef.current = async (chainIdHex) => {
+        const newChainId = parseInt(chainIdHex, 16);
+        
+        // Immediate duplicate check - if same chainId as last processed, skip
+        if (lastChainIdRef.current === newChainId && chainId === newChainId) {
+          return; // Silent skip - already on this chain
+        }
+        
+        // If currently processing a chain change, ignore new events
+        if (chainChangeProcessingRef.current) {
+          return; // Silent skip - already processing
+        }
+        
+        // If we're in a pending switch and this event isn't the target, ignore it
+        if (pendingTargetChainRef.current && newChainId !== pendingTargetChainRef.current) {
+          return; // Silent skip - waiting for target chain
+        }
+        
+        // If it matches the pending target, clear the pending flag
+        if (pendingTargetChainRef.current === newChainId) {
+          pendingTargetChainRef.current = null;
+          setSwitchingNetwork(false);
+        }
+        
+        // Mark as processing immediately to prevent concurrent handlers
+        const previousChainId = lastChainIdRef.current;
+        lastChainIdRef.current = newChainId;
+        chainChangeProcessingRef.current = true;
+        
+        // If there's already a pending timeout, clear it
+        if (chainChangeTimeoutRef.current) {
+          clearTimeout(chainChangeTimeoutRef.current);
+          chainChangeTimeoutRef.current = null;
+        }
+        
+        // Debounce chain change to catch rapid-fire events
+        chainChangeTimeoutRef.current = setTimeout(async () => {
+          // Double-check we should still process
+          if (lastChainIdRef.current !== newChainId || chainId === newChainId) {
+            chainChangeProcessingRef.current = false;
+            return;
+          }
+          
+          console.log('🔄 Chain changed:', chainIdHex, '→', newChainId);
+          
+          // Only recreate provider if chainId actually changed
+          if (chainId !== newChainId) {
+            setChainId(newChainId);
+            
+            // Recreate ethers provider when chain changes to avoid network mismatch errors
+            try {
+              const newEthersProvider = new ethers.providers.Web3Provider(wcProvider);
+              setProvider(newEthersProvider);
+              console.log('✅ Chain updated to:', newChainId);
+            } catch (error) {
+              console.error('Error recreating provider on chain change:', error);
+              // Revert chainId on error
+              lastChainIdRef.current = previousChainId;
+              setChainId(previousChainId);
+            }
+          }
+          
+          chainChangeTimeoutRef.current = null;
+          chainChangeProcessingRef.current = false;
+        }, 200); // Increased debounce to catch rapid-fire events
+      };
 
       disconnectHandlerRef.current = () => {
         console.log('🔌 WalletConnect disconnected');
@@ -341,46 +515,74 @@ export const WalletProvider = ({ children }) => {
     }
   }, []);
 
-  // Helper to clear state on disconnect
+  // Helper to clear state on disconnect - THOROUGH CLEANUP
   const handleDisconnect = () => {
+    console.log('🧹 Starting thorough disconnect cleanup...');
+    
+    // Clear all state
     setWalletAddress(null);
     setIsConnected(false);
     setChainId(null);
     setProvider(null);
-    lastChainIdRef.current = null;
-    pendingTargetChainRef.current = null; // Clear pending chain switch
     setSwitchingNetwork(false);
-    listenersSetupRef.current = false;
+    setConnecting(false);
     
+    // Clear all refs
+    lastChainIdRef.current = null;
+    pendingTargetChainRef.current = null;
+    listenersSetupRef.current = false;
+    lastAccountRef.current = null;
+    chainChangeProcessingRef.current = false;
+    
+    // Clear timeouts if exist
     if (chainChangeTimeoutRef.current) {
       clearTimeout(chainChangeTimeoutRef.current);
       chainChangeTimeoutRef.current = null;
     }
+    if (accountChangeTimeoutRef.current) {
+      clearTimeout(accountChangeTimeoutRef.current);
+      accountChangeTimeoutRef.current = null;
+    }
     
-    // Remove specific listeners
+    // Remove all listeners and disconnect provider
     if (wcProviderRef.current) {
-      const provider = wcProviderRef.current;
-      const removeListener = (event, handler) => {
-        if (handler) {
-          // Try .off() first (EIP-1193 style)
-          if (typeof provider.off === 'function') {
-            provider.off(event, handler);
+      try {
+        const provider = wcProviderRef.current;
+        
+        // Remove specific listeners
+        const removeListener = (event, handler) => {
+          if (handler) {
+            if (typeof provider.off === 'function') {
+              provider.off(event, handler);
+            } else if (typeof provider.removeListener === 'function') {
+              provider.removeListener(event, handler);
+            }
           }
-          // Try .removeListener() (Node.js EventEmitter style)
-          else if (typeof provider.removeListener === 'function') {
-            provider.removeListener(event, handler);
+        };
+        
+        removeListener('accountsChanged', accountsChangedHandlerRef.current);
+        removeListener('chainChanged', chainChangedHandlerRef.current);
+        removeListener('disconnect', disconnectHandlerRef.current);
+        
+        // Remove all listeners as fallback
+        if (typeof provider.removeAllListeners === 'function') {
+          provider.removeAllListeners();
+        }
+        
+        // Disconnect if connected
+        if (provider.connected) {
+          try {
+            provider.disconnect().catch(() => {
+              // Ignore disconnect errors
+            });
+          } catch (e) {
+            // Ignore disconnect errors
           }
         }
-      };
-      
-      removeListener('accountsChanged', accountsChangedHandlerRef.current);
-      removeListener('chainChanged', chainChangedHandlerRef.current);
-      removeListener('disconnect', disconnectHandlerRef.current);
-      
-      // Fallback: remove all listeners if specific removal doesn't work
-      if (typeof provider.removeAllListeners === 'function') {
-        provider.removeAllListeners();
+      } catch (e) {
+        console.warn('⚠️ Error during provider cleanup:', e);
       }
+      
       wcProviderRef.current = null;
     }
     
@@ -389,8 +591,36 @@ export const WalletProvider = ({ children }) => {
     chainChangedHandlerRef.current = null;
     disconnectHandlerRef.current = null;
     
-    localStorage.removeItem('walletConnected');
+    // Clear WalletConnect cache
     clearWalletConnectCache();
+    
+    // Clear ALL localStorage items related to wallet
+    localStorage.removeItem('walletConnected');
+    
+    // Aggressively clear any WalletConnect/localStorage items
+    const keysToRemove = [];
+    Object.keys(localStorage).forEach(key => {
+      if (
+        key.includes('wallet') || 
+        key.includes('wc@') || 
+        key.includes('WalletConnect') ||
+        key.includes('WALLETCONNECT') ||
+        key.startsWith('wc-') ||
+        key.includes('ethereum')
+      ) {
+        keysToRemove.push(key);
+      }
+    });
+    
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {
+        console.warn(`⚠️ Failed to remove localStorage key: ${key}`, e);
+      }
+    });
+    
+    console.log('✅ Disconnect cleanup complete - all state and cache cleared');
   };
 
   // Switch to Base mainnet
