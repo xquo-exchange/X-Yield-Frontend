@@ -42,7 +42,7 @@ function AppContent() {
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
           
-          <div className="center-content" key={activePage} style={{animation: 'fadeInScale 0.3s ease-out'}}>
+          <div className="center-content" style={{animation: 'fadeInScale 0.3s ease-out'}}>
             <VaultApp 
               onShowToast={showToast}
               mode={activePage}
