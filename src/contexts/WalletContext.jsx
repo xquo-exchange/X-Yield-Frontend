@@ -621,6 +621,13 @@ export const WalletProvider = ({ children }) => {
     });
     
     console.log('✅ Disconnect cleanup complete - all state and cache cleared');
+    
+    // Force page refresh to ensure clean state for next connection
+    // This ensures WalletConnect is fully reset and QR code will work
+    console.log('🔄 Refreshing page for clean reconnect...');
+    setTimeout(() => {
+      window.location.reload();
+    }, 100); // Small delay to ensure cleanup completes
   };
 
   // Switch to Base mainnet

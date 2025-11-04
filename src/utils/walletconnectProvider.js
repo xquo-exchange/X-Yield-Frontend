@@ -59,13 +59,22 @@ export async function initWalletConnect() {
       }
     });
     
-    // Only enable (show QR) if not already connected
-    if (!provider.connected) {
-      console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    // CRITICAL: Always call enable() after init to ensure fresh connection
+    // Even if provider.connected is true, it might be a stale session from localStorage
+    // enable() will show QR if needed or reuse valid session
+    console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    try {
       await provider.enable();
       console.log('✅ WalletConnect: Provider enabled successfully');
-    } else {
-      console.log('✅ WalletConnect: Provider already connected (no QR needed)');
+    } catch (error) {
+      // If already connected, enable() might throw - check if it's actually connected
+      if (provider.connected) {
+        console.log('✅ WalletConnect: Provider already connected (session reused)');
+      } else {
+        // Re-throw if it's a real error and provider is not connected
+        console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
+        throw error;
+      }
     }
     
     // Close the modal after successful connection (if it's still open)
@@ -125,8 +134,26 @@ export function clearWalletConnectCache() {
   
   isInitializing = false;
   
-  // Don't clear WalletConnect localStorage - let it persist sessions
-  // Only clear if explicitly disconnecting (handled in handleDisconnect)
+  // CRITICAL: Clear WalletConnect localStorage sessions
+  // This ensures a fresh connection after disconnect
+  // WalletConnect v2 stores sessions with these prefixes
+  try {
+    const keys = Object.keys(localStorage);
+    let clearedCount = 0;
+    keys.forEach(key => {
+      // WalletConnect v2 stores sessions with these prefixes
+      if (key.startsWith('wc@2:') || key.startsWith('WCM_') || key.startsWith('walletconnect')) {
+        localStorage.removeItem(key);
+        clearedCount++;
+      }
+    });
+    if (clearedCount > 0) {
+      console.log(`🗑️ Removed ${clearedCount} WalletConnect session(s) from localStorage`);
+    }
+  } catch (e) {
+    console.warn('⚠️ Error clearing WalletConnect localStorage:', e);
+  }
+  
   console.log('✅ WalletConnect cache cleared');
 }
 
