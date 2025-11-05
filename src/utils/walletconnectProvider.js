@@ -59,22 +59,20 @@ export async function initWalletConnect() {
       }
     });
     
-    // CRITICAL: Always call enable() after init to ensure fresh connection
-    // Even if provider.connected is true, it might be a stale session from localStorage
-    // enable() will show QR if needed or reuse valid session
-    console.log('🔗 WalletConnect: Provider created, enabling connection...');
-    try {
-      await provider.enable();
-      console.log('✅ WalletConnect: Provider enabled successfully');
-    } catch (error) {
-      // If already connected, enable() might throw - check if it's actually connected
-      if (provider.connected) {
-        console.log('✅ WalletConnect: Provider already connected (session reused)');
-      } else {
+    // CRITICAL: Only call enable() if not already connected to prevent mobile pop-up spam
+    // On mobile, enable() triggers wallet app deep links, so we must avoid calling it unnecessarily
+    if (!provider.connected) {
+      console.log('🔗 WalletConnect: Provider created, enabling connection...');
+      try {
+        await provider.enable();
+        console.log('✅ WalletConnect: Provider enabled successfully');
+      } catch (error) {
         // Re-throw if it's a real error and provider is not connected
         console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
         throw error;
       }
+    } else {
+      console.log('✅ WalletConnect: Provider already connected (session reused, skipping enable())');
     }
     
     cachedProvider = provider;
@@ -137,9 +135,24 @@ export function clearWalletConnectCache() {
   console.log('✅ WalletConnect cache cleared');
 }
 
+// Debounce timer for modal closing to prevent spam
+let modalCloseTimeout = null;
+let isModalClosing = false;
+
 // Forcefully close WalletConnect modal - call this during chain changes
+// Added debouncing to prevent mobile pop-up spam
 export function closeWalletConnectModal() {
-  try {
+  // If already closing or scheduled to close, skip
+  if (isModalClosing || modalCloseTimeout) {
+    return;
+  }
+  
+  // Debounce modal closing to prevent rapid-fire calls
+  modalCloseTimeout = setTimeout(() => {
+    isModalClosing = true;
+    modalCloseTimeout = null;
+    
+    try {
     // Close WalletConnect v2 modal using multiple selectors
     const modalSelectors = [
       'w3m-modal',
@@ -173,8 +186,14 @@ export function closeWalletConnectModal() {
       cachedProvider.closeModal();
       console.log('✅ WalletConnect modal closed via provider API');
     }
-  } catch (error) {
-    // Silently fail - modal might already be closed
-  }
+    } catch (error) {
+      // Silently fail - modal might already be closed
+    } finally {
+      // Reset flag after a short delay to allow modal to close
+      setTimeout(() => {
+        isModalClosing = false;
+      }, 200);
+    }
+  }, 100); // 100ms debounce to prevent spam
 }
 
