@@ -26,12 +26,16 @@ export async function initWalletConnect() {
   isInitializing = true;
   console.log('🔗 WalletConnect: Initializing provider for Base...');
   
+  // CRITICAL MOBILE FIX: Detect mobile and disable QR modal to prevent auto-triggers
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
   try {
     // Initialize provider - this will check for existing sessions in localStorage
+    // CRITICAL: On mobile, showQrModal MUST be false to prevent auto-triggers
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
       chains: [8453], // Base mainnet
-      showQrModal: true, // Show QR for initial connections, but not during network switches
+      showQrModal: !isMobile, // FALSE on mobile to prevent auto-triggers, true on desktop
       qrModalOptions: {
         themeMode: "dark",
         themeVariables: {
@@ -59,25 +63,66 @@ export async function initWalletConnect() {
       }
     });
     
-    // CRITICAL: Only call enable() if not already connected to prevent mobile pop-up spam
-    // On mobile, enable() triggers wallet app deep links, so we must avoid calling it unnecessarily
-    if (!provider.connected) {
-      console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    // CRITICAL FIX: Don't call enable() automatically - let the caller decide
+    // According to WalletConnect v2 docs:
+    // - If provider.connected is true, session exists and is valid
+    // - If provider.connected is false, enable() must be called to establish connection
+    // - BUT: On mobile, enable() triggers wallet app even with showQrModal: false
+    // - SOLUTION: Only call enable() if explicitly requested (not on auto-init)
+    
+    // Check if provider has a valid session from localStorage
+    if (provider.connected) {
+      console.log('✅ WalletConnect: Provider already connected (session exists in localStorage)');
+      // Session exists - verify it's still valid by checking accounts
       try {
-        await provider.enable();
-        console.log('✅ WalletConnect: Provider enabled successfully');
+        const accounts = await provider.request({ method: 'eth_accounts' });
+        if (accounts && accounts.length > 0) {
+          console.log('✅ WalletConnect: Valid session found, accounts:', accounts);
+          cachedProvider = provider;
+          isInitializing = false;
+          return provider;
+        } else {
+          // Session exists but no accounts - might be stale
+          console.log('⚠️ WalletConnect: Session exists but no accounts - might be stale');
+          // Don't call enable() here - let caller handle reconnection
+          cachedProvider = provider;
+          isInitializing = false;
+          return provider;
+        }
       } catch (error) {
-        // Re-throw if it's a real error and provider is not connected
-        console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
-        throw error;
+        console.warn('⚠️ WalletConnect: Error checking session validity:', error);
+        // Session might be invalid - provider will handle this
+        cachedProvider = provider;
+        isInitializing = false;
+        return provider;
       }
     } else {
-      console.log('✅ WalletConnect: Provider already connected (session reused, skipping enable())');
+      // No session exists - provider.connected is false
+      // CRITICAL: On mobile, DON'T call enable() automatically - it triggers wallet app
+      // enable() should only be called when user explicitly clicks "Connect Wallet"
+      if (isMobile) {
+        console.log('📱 Mobile: Provider not connected, but skipping enable() to prevent auto-trigger');
+        console.log('📱 Mobile: enable() will be called when user clicks Connect Wallet button');
+        cachedProvider = provider;
+        isInitializing = false;
+        return provider; // Return provider without calling enable()
+      } else {
+        // Desktop: It's OK to call enable() - it will show QR modal
+        console.log('🔗 WalletConnect: Provider not connected, enabling connection...');
+        try {
+          await provider.enable();
+          console.log('✅ WalletConnect: Provider enabled successfully');
+          cachedProvider = provider;
+          isInitializing = false;
+          return provider;
+        } catch (error) {
+          // Re-throw if it's a real error and provider is not connected
+          console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
+          isInitializing = false;
+          throw error;
+        }
+      }
     }
-    
-    cachedProvider = provider;
-    isInitializing = false;
-    return provider;
   } catch (error) {
     isInitializing = false;
     console.error('❌ WalletConnect: Initialization failed -', error.message || error);

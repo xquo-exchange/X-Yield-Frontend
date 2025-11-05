@@ -114,9 +114,16 @@ export const WalletProvider = ({ children }) => {
         // This prevents automatic wallet app triggers on page load
         console.log('📱 Mobile detected - disabling auto-reconnect to prevent pop-up spam');
         localStorage.removeItem('walletConnected');
+        // CRITICAL: DON'T clear cache on mobile - it might trigger wallet requests
+        // Only clear if absolutely necessary (version change above)
       } else {
-        // Make sure cache is clear if not auto-connecting
-        clearWalletConnectCache();
+        // CRITICAL MOBILE FIX: Don't clear cache on mobile mount - it triggers wallet requests
+        // Only clear cache if we're actually connecting (not on mount)
+        if (!isMobile) {
+          clearWalletConnectCache();
+        } else {
+          console.log('📱 Mobile detected - skipping cache clear on mount to prevent pop-up spam');
+        }
       }
     };
 
@@ -237,6 +244,21 @@ export const WalletProvider = ({ children }) => {
         
         // Get fresh provider
         wcProvider = await initWalletConnect();
+        
+        // CRITICAL MOBILE FIX: On mobile, enable() was skipped in initWalletConnect()
+        // We need to explicitly call enable() when user clicks Connect Wallet button
+        // This ensures wallet app only opens on user interaction, not automatically
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (!wcProvider.connected && isMobile) {
+          console.log('📱 Mobile: User clicked Connect Wallet - now calling enable()');
+          try {
+            await wcProvider.enable();
+            console.log('✅ Mobile: Provider enabled successfully after user interaction');
+          } catch (error) {
+            console.error('❌ Mobile: Enable failed:', error);
+            throw error;
+          }
+        }
       } else {
         console.log('✅ Reusing existing connected provider (no QR needed)');
       }
@@ -337,55 +359,61 @@ export const WalletProvider = ({ children }) => {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       try {
-        // Get current chain from WalletConnect provider directly (faster than ethers)
-        const currentChainId = await wcProvider.request({ method: 'eth_chainId' });
-        const currentChainIdNum = parseInt(currentChainId, 16);
+        // CRITICAL MOBILE FIX: Don't request eth_chainId on mobile until user explicitly connects
+        // This request can trigger wallet app on mobile
+        let currentChainIdNum = 8453; // Default to Base
         
-        console.log(`🔍 Initial chain detected: ${currentChainIdNum}`);
+        if (!isMobile) {
+          // Only check chain on desktop
+          const currentChainId = await wcProvider.request({ method: 'eth_chainId' });
+          currentChainIdNum = parseInt(currentChainId, 16);
+          console.log(`🔍 Initial chain detected: ${currentChainIdNum}`);
+        } else {
+          console.log('📱 Mobile detected - skipping eth_chainId request to prevent pop-up');
+        }
         
         // Only switch network if not already on Base
-        // On mobile, network switches trigger wallet app pop-ups, so be careful
+        // CRITICAL MOBILE FIX: On mobile, don't auto-switch network - let user do it manually
+        // Auto-switching triggers wallet app pop-ups
         if (currentChainIdNum !== 8453) {
-          console.log('🔄 Switching to Base network...');
-          try {
-            // On mobile, this will trigger wallet app - but it's necessary for correct network
-            await wcProvider.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x2105' }], // Base mainnet (8453 in hex)
-            });
-            console.log('✅ Network switch requested');
-          } catch (switchError) {
-            // If chain not added, try to add it
-            if (switchError.code === 4902) {
-              console.log('➕ Base network not found, adding it...');
-              try {
-                await wcProvider.request({
-                  method: 'wallet_addEthereumChain',
-                  params: [{
-                    chainId: '0x2105',
-                    chainName: 'Base',
-                    nativeCurrency: {
-                      name: 'Ethereum',
-                      symbol: 'ETH',
-                      decimals: 18
-                    },
-                    rpcUrls: ['https://mainnet.base.org'],
-                    blockExplorerUrls: ['https://basescan.org']
-                  }]
-                });
-                console.log('✅ Base network added');
-              } catch (addError) {
-                console.warn('⚠️ Failed to add Base network:', addError.message);
-                // On mobile, if user rejects, don't throw - just log warning
-                if (isMobile && addError.code === 4001) {
-                  console.log('📱 User rejected network add on mobile - continuing anyway');
+          if (isMobile) {
+            // On mobile, just log warning - don't auto-switch
+            console.log('📱 Mobile: User is not on Base network. They can switch manually.');
+            console.warn('⚠️ Mobile: Auto network switch disabled to prevent pop-up spam');
+          } else {
+            // Desktop: Auto-switch as before
+            console.log('🔄 Switching to Base network...');
+            try {
+              await wcProvider.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x2105' }], // Base mainnet (8453 in hex)
+              });
+              console.log('✅ Network switch requested');
+            } catch (switchError) {
+              // If chain not added, try to add it
+              if (switchError.code === 4902) {
+                console.log('➕ Base network not found, adding it...');
+                try {
+                  await wcProvider.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x2105',
+                      chainName: 'Base',
+                      nativeCurrency: {
+                        name: 'Ethereum',
+                        symbol: 'ETH',
+                        decimals: 18
+                      },
+                      rpcUrls: ['https://mainnet.base.org'],
+                      blockExplorerUrls: ['https://basescan.org']
+                    }]
+                  });
+                  console.log('✅ Base network added');
+                } catch (addError) {
+                  console.warn('⚠️ Failed to add Base network:', addError.message);
                 }
-              }
-            } else {
-              console.warn('⚠️ Network switch error (continuing anyway):', switchError.message);
-              // On mobile, if user rejects switch, don't throw
-              if (isMobile && switchError.code === 4001) {
-                console.log('📱 User rejected network switch on mobile - continuing anyway');
+              } else {
+                console.warn('⚠️ Network switch error (continuing anyway):', switchError.message);
               }
             }
           }
@@ -393,7 +421,7 @@ export const WalletProvider = ({ children }) => {
           console.log('✅ Already on Base network');
         }
       } catch (switchError) {
-        // This catch block handles any errors from eth_chainId request above
+        // This catch block handles any errors
         console.warn('⚠️ Error checking chain ID (continuing anyway):', switchError.message);
       }
 
