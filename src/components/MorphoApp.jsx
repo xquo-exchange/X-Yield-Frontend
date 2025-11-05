@@ -25,7 +25,9 @@ const VAULT_ABI = [
   "function asset() view returns (address)", // Returns USDC address
   "function totalAssets() view returns (uint256)",
   "function previewDeposit(uint256 assets) view returns (uint256 shares)",
-  "function previewWithdraw(uint256 assets) view returns (uint256 shares)"
+  "function previewWithdraw(uint256 assets) view returns (uint256 shares)",
+  "function maxWithdraw(address owner) view returns (uint256)",
+  "function paused() view returns (bool)"
 ];
 
 const VaultApp = ({ onShowToast, mode }) => {
@@ -694,6 +696,59 @@ const VaultApp = ({ onShowToast, mode }) => {
         return;
       }
 
+      // Check vault liquidity and max withdrawable amount
+      console.log("🟠 Checking vault liquidity...");
+      try {
+        // Check if vault is paused
+        try {
+          const isPaused = await vaultContract.paused();
+          if (isPaused) {
+            console.warn("🟠 Vault is paused");
+            onShowToast?.("error", "Withdrawals are currently paused. Please try again later.");
+            setIsLoading(false);
+            return;
+          }
+        } catch (pausedError) {
+          // If paused() doesn't exist, that's fine - vault might not have pause functionality
+          console.log("🟠 Vault doesn't have paused() function or it's not paused");
+        }
+
+        // Check max withdrawable (this is the actual limit based on vault liquidity)
+        try {
+          const maxWithdrawable = await vaultContract.maxWithdraw(account);
+          console.log("🟠 Max withdrawable (raw):", maxWithdrawable.toString());
+          console.log("🟠 Max withdrawable (formatted):", ethers.utils.formatUnits(maxWithdrawable, 6));
+          
+          if (maxWithdrawable.lt(usdcAmount)) {
+            const maxUsdcFormatted = ethers.utils.formatUnits(maxWithdrawable, 6);
+            console.warn("🟠 Vault liquidity insufficient - max withdrawable:", maxUsdcFormatted);
+            onShowToast?.("error", `Vault has insufficient liquidity. Maximum withdrawable: ${parseFloat(maxUsdcFormatted).toFixed(2)} USDC`);
+            setIsLoading(false);
+            return;
+          }
+        } catch (maxWithdrawError) {
+          // If maxWithdraw() doesn't exist, fall back to totalAssets check
+          console.log("🟠 maxWithdraw() not available, checking totalAssets instead");
+        }
+
+        // Also check total assets in vault as a fallback/supplementary check
+        const totalAssets = await vaultContract.totalAssets();
+        console.log("🟠 Vault totalAssets (raw):", totalAssets.toString());
+        console.log("🟠 Vault totalAssets (formatted):", ethers.utils.formatUnits(totalAssets, 6));
+        
+        if (totalAssets.lt(usdcAmount)) {
+          const totalAssetsFormatted = ethers.utils.formatUnits(totalAssets, 6);
+          console.warn("🟠 Vault total assets insufficient:", totalAssetsFormatted);
+          onShowToast?.("error", `Vault has insufficient assets. Available: ${parseFloat(totalAssetsFormatted).toFixed(2)} USDC`);
+          setIsLoading(false);
+          return;
+        }
+      } catch (liquidityError) {
+        console.error("🟠 Error checking vault liquidity:", liquidityError);
+        // Continue anyway - the contract will revert if insufficient, but we tried our best
+        console.warn("🟠 Proceeding with withdrawal despite liquidity check error - contract will revert if insufficient");
+      }
+
       setStatus("Withdrawing from vault...");
 
       console.log("🟠 Vault address:", VAULT_ADDRESS);
@@ -783,16 +838,42 @@ const VaultApp = ({ onShowToast, mode }) => {
       }
       
       // Try to decode revert reason if available
+      let errorMessage = "Something went wrong with your withdrawal. Please try again.";
+      
       if (error.data && typeof error.data === 'string' && error.data.startsWith('0x')) {
         console.error("❌ Revert data:", error.data);
+        
+        // Check for specific error codes
+        if (error.data.includes('0x4323a555')) {
+          errorMessage = "Vault has insufficient liquidity to process this withdrawal. The assets may be deployed in strategies. Please try a smaller amount or try again later.";
+          console.error("❌ Custom error 0x4323a555 detected - likely insufficient vault liquidity");
+        } else if (error.data.length >= 10) {
+          // Try to decode as a custom error
+          const errorSelector = error.data.slice(0, 10);
+          console.error("❌ Error selector:", errorSelector);
+          
+          if (errorSelector === '0x4323a555') {
+            errorMessage = "Vault has insufficient liquidity to process this withdrawal. Please try a smaller amount or try again later.";
+          }
+        }
+      }
+      
+      // Check error reason if available
+      if (error.reason) {
+        console.error("❌ Error reason:", error.reason);
+        if (error.reason.includes('insufficient') || error.reason.includes('liquidity')) {
+          errorMessage = "Vault has insufficient liquidity. Please try a smaller amount or try again later.";
+        }
       }
       
       const msg = error.message || String(error);
       
       if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
         onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
+      } else if (msg.includes("insufficient") || msg.includes("liquidity")) {
+        onShowToast?.("error", "Vault has insufficient liquidity. Please try a smaller amount or try again later.");
       } else {
-        onShowToast?.("error", "Something went wrong with your withdrawal. Please try again.");
+        onShowToast?.("error", errorMessage);
       }
       
       console.error("❌ ========== WITHDRAWAL ERROR END ==========");
