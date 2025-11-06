@@ -1,51 +1,62 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
-import { useUsdcBalance } from "../hooks/useUsdcBalance";
-import { useAllowance } from "../hooks/useAllowance";
-import { useVaultBalance } from "../hooks/useVaultBalance";
-import { useApprove } from "../hooks/useApprove";
-import { useDeposit } from "../hooks/useDeposit";
-import { useWithdraw } from "../hooks/useWithdraw";
-import { BASE_CHAIN_ID, USDC_DECIMALS } from "../lib/const/base";
+import { temporarilyAllowDeeplinks, isMobileDevice } from "../utils/walletconnectProvider";
 import "./MorphoApp.css";
 
-const MorphoApp = ({ onShowToast, mode }) => {
-  const { walletAddress: account, isConnected, connectWallet, provider: walletProvider, chainId, switchToBase } = useWallet();
+// Vault address on Base
+const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
+
+// ERC-4626 Vault ABI (only the functions we need)
+const VAULT_ABI = [
+  // ERC-4626 Core Functions
+  "function deposit(uint256 assets, address receiver) returns (uint256 shares)",
+  "function redeem(uint256 shares, address receiver, address owner) returns (uint256 assets)",
+  "function withdraw(uint256 assets, address receiver, address owner) returns (uint256 shares)",
+  
+  // ERC-20 Functions (vault token)
+  "function balanceOf(address account) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  
+  // ERC-4626 View Functions
+  "function convertToAssets(uint256 shares) view returns (uint256)",
+  "function convertToShares(uint256 assets) view returns (uint256)",
+  "function asset() view returns (address)", // Returns USDC address
+  "function totalAssets() view returns (uint256)",
+  "function previewDeposit(uint256 assets) view returns (uint256 shares)",
+  "function previewWithdraw(uint256 assets) view returns (uint256 shares)",
+  "function maxWithdraw(address owner) view returns (uint256)" // Maximum withdrawable assets
+];
+
+const VaultApp = ({ onShowToast, mode }) => {
+  const { 
+    walletAddress: account, 
+    isConnected, 
+    connectWallet, 
+    provider: walletProvider, 
+    chainId,
+    usdcBalance,
+    vaultBalance,
+    fetchBalances,
+    invalidateBalanceCache
+  } = useWallet();
   
   const [showWarning, setShowWarning] = useState(false);
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("");
   const [showStatus, setShowStatus] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
+  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
+  const pendingTransactionRef = useRef(null);
   
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
   const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
   
-  const BASE_APY = 8.5; // Example APY for Morpho
-
-  // Use hooks for balances and transactions
-  const { balance: usdcBalance } = useUsdcBalance(walletProvider, account);
-  const { balance: vaultBalance } = useVaultBalance(walletProvider, account);
-  const { allowance } = useAllowance(walletProvider, account);
-  const { approve, isPending: isApprovePending, txHash: approveTxHash } = useApprove();
-  const { deposit, isPending: isDepositPending, txHash: depositTxHash } = useDeposit();
-  const { withdraw, getMaxWithdraw, isPending: isWithdrawPending, txHash: withdrawTxHash } = useWithdraw();
-
-  const isLoading = isApprovePending || isDepositPending || isWithdrawPending;
-  const currentTxHash = approveTxHash || depositTxHash || withdrawTxHash;
-
-  // Update txHash when transaction hash changes
-  useEffect(() => {
-    if (currentTxHash) {
-      setTxHash(currentTxHash);
-    }
-  }, [currentTxHash]);
-
-  // Check if user is on correct network
-  const isCorrectNetwork = chainId === BASE_CHAIN_ID;
+  const BASE_APY = 8.5; // Vault APY
 
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
@@ -87,59 +98,31 @@ const MorphoApp = ({ onShowToast, mode }) => {
     };
   };
 
-  const setMaxAmount = async () => {
-    if (mode === "deposit") {
-      if (!usdcBalance || parseFloat(usdcBalance) <= 0) {
-        onShowToast?.("error", "No USDC balance");
-        return;
-      }
-      // Subtract 1 unit (in 6 decimals) to avoid dust/rounding issues
-      const balanceBN = ethers.utils.parseUnits(usdcBalance, USDC_DECIMALS);
-      const oneUnit = ethers.utils.parseUnits("1", USDC_DECIMALS);
-      const maxAmount = balanceBN.sub(oneUnit);
-      if (maxAmount.lte(0)) {
-        setAmount(usdcBalance);
-      } else {
-        setAmount(ethers.utils.formatUnits(maxAmount, USDC_DECIMALS));
-      }
-    } else {
-      // For withdraw, get max withdraw from vault
-      if (!walletProvider || !account) {
-        onShowToast?.("error", "Wallet not connected");
-        return;
-      }
-      try {
-        const maxWithdraw = await getMaxWithdraw(walletProvider, account);
-        if (maxWithdraw && parseFloat(maxWithdraw) > 0) {
-          setAmount(maxWithdraw);
-        } else {
-          onShowToast?.("error", "No vault balance available");
-        }
-      } catch (error) {
-        console.error("Error getting max withdraw:", error);
-        // Fallback to vault balance display
-        if (vaultBalance && parseFloat(vaultBalance) > 0) {
-          setAmount(vaultBalance);
-        } else {
-          onShowToast?.("error", "No vault balance available");
-        }
-      }
+  const setMaxAmount = () => {
+    const bal = mode === "deposit" ? usdcBalance : vaultBalance;
+    
+    if (!bal || parseFloat(bal) <= 0) {
+      onShowToast?.("error", `No ${mode === "deposit" ? "USDC" : "vault"} balance`);
+      return;
     }
+    
+    setAmount(bal);
   };
 
-  // Execute Deposit (USDC → xPLS Vault)
+  // Execute Deposit (USDC → Vault)
   const executeDeposit = async () => {
+    console.log("🔵 ========== DEPOSIT START ==========");
+    console.log("🔵 Input amount (string):", amount);
+    console.log("🔵 Input amount (parsed float):", parseFloat(amount));
+    
     if (!account || !walletProvider) {
       onShowToast?.("error", "Please connect your wallet");
       return;
     }
 
-    if (!isCorrectNetwork) {
-      const result = await switchToBase();
-      if (!result.success) {
-        onShowToast?.("error", "Please switch to Base network");
-        return;
-      }
+    if (chainId !== 8453) {
+      onShowToast?.("error", "Please switch to Base network");
+      return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
@@ -147,97 +130,355 @@ const MorphoApp = ({ onShowToast, mode }) => {
       return;
     }
 
-    const amountBN = ethers.utils.parseUnits(amount, USDC_DECIMALS);
-    const balanceBN = ethers.utils.parseUnits(usdcBalance || "0", USDC_DECIMALS);
-
-    if (balanceBN.lt(amountBN)) {
-      onShowToast?.("error", `Insufficient balance. You have ${parseFloat(usdcBalance || "0").toFixed(2)} USDC.`);
-      return;
-    }
-
-    setShowStatus(true);
+    setIsLoading(true);
     setStatus("Preparing deposit...");
     setTxHash(null);
 
     try {
-      // Check if approval is needed
-      const allowanceBN = ethers.utils.parseUnits(allowance || "0", USDC_DECIMALS);
+      const signer = walletProvider.getSigner();
+      console.log("🔵 Signer address:", await signer.getAddress());
 
-      if (allowanceBN.lt(amountBN)) {
-        setStatus("Approving USDC...");
-        onShowToast?.("info", "Approving USDC...");
+      // Check USDC balance
+      const usdcContract = new ethers.Contract(
+        USDC_ADDRESS,
+        [
+          "function balanceOf(address) view returns (uint256)",
+          "function decimals() view returns (uint8)",
+          "function approve(address spender, uint256 amount) returns (bool)",
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ],
+        signer
+      );
 
-        const approveResult = await approve(walletProvider, amount);
-        
-        if (!approveResult.success) {
-          if (approveResult.error?.includes("rejected")) {
-            onShowToast?.("error", "Approval cancelled");
-          } else {
-            onShowToast?.("error", approveResult.error || "Approval failed");
-          }
-          setShowStatus(false);
-          return;
-        }
+      const decimals = await usdcContract.decimals();
+      console.log("🔵 USDC decimals:", decimals);
+      
+      const balance = await usdcContract.balanceOf(account);
+      console.log("🔵 USDC balance (raw):", balance.toString());
+      console.log("🔵 USDC balance (formatted):", ethers.utils.formatUnits(balance, decimals));
+      
+      const requiredAmount = ethers.utils.parseUnits(amount, decimals);
+      console.log("🔵 Required amount (raw BigNumber):", requiredAmount.toString());
+      console.log("🔵 Required amount (formatted check):", ethers.utils.formatUnits(requiredAmount, decimals));
+      console.log("🔵 Required amount string length:", requiredAmount.toString().length);
+      console.log("🔵 Required amount hex:", requiredAmount.toHexString());
 
-        if (approveResult.txHash) {
-          setTxHash(approveResult.txHash);
-          onShowToast?.("success", "USDC approved! Proceeding with deposit...");
-        }
-
-        // Wait a bit for the approval to be mined
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      setStatus("Depositing to vault...");
-      onShowToast?.("info", "Depositing...");
-
-      const depositResult = await deposit(walletProvider, amount, account);
-
-      if (!depositResult.success) {
-        if (depositResult.error?.includes("rejected")) {
-          onShowToast?.("error", "Deposit cancelled");
-        } else {
-          onShowToast?.("error", depositResult.error || "Deposit failed");
-        }
-        setShowStatus(false);
+      if (balance.lt(requiredAmount)) {
+        const actualBalance = ethers.utils.formatUnits(balance, decimals);
+        onShowToast?.("error", `You need ${amount} USDC but only have ${parseFloat(actualBalance).toFixed(2)} USDC.`);
+        setIsLoading(false);
         return;
       }
 
-      if (depositResult.txHash) {
-        setTxHash(depositResult.txHash);
-        onShowToast?.("success", `Deposit successful!`, depositResult.txHash);
-        setStatus("Deposit completed!");
-        setAmount(""); // Clear input on success
+      setStatus("Approving USDC...");
+
+      // Step 1: Approve USDC for vault
+      const approvalAmount = ethers.constants.MaxUint256; // Approve max for gas efficiency
+      console.log("🔵 Approval amount (MaxUint256):", approvalAmount.toString());
+
+      // Check current allowance first
+      const currentAllowance = await usdcContract.allowance(account, VAULT_ADDRESS);
+      console.log("🔵 Current allowance (raw):", currentAllowance.toString());
+      console.log("🔵 Current allowance (formatted):", ethers.utils.formatUnits(currentAllowance, decimals));
+      console.log("🔵 Allowance sufficient?", currentAllowance.gte(requiredAmount));
+      
+      if (currentAllowance.lt(requiredAmount)) {
+        console.log("🔵 Approving USDC...");
+        const approveTx = await usdcContract.approve(VAULT_ADDRESS, approvalAmount);
+        console.log("🔵 Approve tx hash:", approveTx.hash);
+        setTxHash(approveTx.hash);
+        await approveTx.wait();
+        console.log("✅ USDC approved");
+      } else {
+        console.log("🔵 Skipping approval - allowance already sufficient");
       }
 
+      // Step 2: Deposit to vault
+      setStatus("Depositing to vault...");
+      const vaultContract = new ethers.Contract(
+        VAULT_ADDRESS,
+        VAULT_ABI,
+        signer
+      );
+
+      console.log("🔵 Vault address:", VAULT_ADDRESS);
+      console.log("🔵 Deposit params:");
+      console.log("  - assets (requiredAmount):", requiredAmount.toString());
+      console.log("  - receiver (account):", account);
+      
+      // Try to estimate gas first
+      try {
+        const estimatedGas = await vaultContract.estimateGas.deposit(requiredAmount, account);
+        console.log("🔵 Estimated gas:", estimatedGas.toString());
+      } catch (gasError) {
+        console.warn("🔵 Gas estimation failed:", gasError.message);
+      }
+
+      // Try to simulate the call
+      try {
+        const result = await vaultContract.callStatic.deposit(requiredAmount, account);
+        console.log("🔵 Simulated deposit result (shares):", result.toString());
+      } catch (simError) {
+        console.error("🔵 Static call simulation failed:", simError);
+        console.error("🔵 Simulation error message:", simError.message);
+        console.error("🔵 Simulation error data:", simError.data);
+        if (simError.data && typeof simError.data === 'string' && simError.data.length >= 138) {
+          try {
+            // Try to decode revert reason
+            const reason = ethers.utils.toUtf8String("0x" + simError.data.slice(138));
+            console.error("🔵 Revert reason:", reason);
+          } catch (e) {
+            console.error("🔵 Could not decode revert reason");
+          }
+        }
+      }
+
+      // Double-check USDC balance right before deposit
+      const balanceBeforeDeposit = await usdcContract.balanceOf(account);
+      console.log("🔵 USDC balance right before deposit:", balanceBeforeDeposit.toString());
+      console.log("🔵 Balance >= required?", balanceBeforeDeposit.gte(requiredAmount));
+      
+      // Verify allowance one more time
+      const finalAllowance = await usdcContract.allowance(account, VAULT_ADDRESS);
+      console.log("🔵 Final allowance check:", finalAllowance.toString());
+      console.log("🔵 Allowance >= required?", finalAllowance.gte(requiredAmount));
+      
+      // Check vault state before deposit
+      try {
+        const totalAssets = await vaultContract.totalAssets();
+        console.log("🔵 Vault totalAssets:", totalAssets.toString());
+        const assetAddress = await vaultContract.asset();
+        console.log("🔵 Vault asset address:", assetAddress);
+        console.log("🔵 Asset matches USDC?", assetAddress.toLowerCase() === USDC_ADDRESS.toLowerCase());
+      } catch (vaultCheckError) {
+        console.warn("🔵 Could not check vault state:", vaultCheckError.message);
+      }
+      
+      // Try to preview the deposit to see what shares we'd get
+      try {
+        const previewShares = await vaultContract.previewDeposit(requiredAmount);
+        console.log("🔵 Preview shares (previewDeposit):", previewShares.toString());
+        if (previewShares.isZero()) {
+          console.warn("🔵 ⚠️ WARNING: previewDeposit returns 0 shares! This might cause the transaction to revert.");
+        }
+      } catch (previewError) {
+        console.warn("🔵 Could not preview deposit (function may not exist):", previewError.message);
+      }
+
+      // On mobile, pause here and wait for user to click "Confirm in App" button
+      if (isMobileDevice()) {
+        console.log("🔵 Mobile device detected - waiting for user confirmation...");
+        setStatus("Confirm in App");
+        setWaitingForConfirmation(true);
+        
+        // Store the transaction function to execute when button is clicked
+        pendingTransactionRef.current = async () => {
+          try {
+            const depositTx = await temporarilyAllowDeeplinks(async () => {
+              console.log("🔵 Sending deposit transaction...");
+              const tx = await vaultContract.deposit(requiredAmount, account);
+              console.log("🔵 Deposit tx hash:", tx.hash);
+              console.log("🔵 Deposit tx:", {
+                to: tx.to,
+                from: tx.from,
+                data: tx.data,
+                value: tx.value?.toString(),
+                gasLimit: tx.gasLimit?.toString(),
+              });
+              
+              setTxHash(tx.hash);
+              setStatus("Waiting for confirmation...");
+              setWaitingForConfirmation(false);
+              
+              return tx;
+            });
+            
+            // Wait for receipt
+            const receipt = await depositTx.wait();
+            console.log("✅ Deposit confirmed:", receipt.transactionHash);
+            console.log("🔵 Receipt status:", receipt.status);
+            console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
+
+            // Refresh balances
+            setStatus("Updating balances...");
+            setShowStatus(false);
+            onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
+
+            // Invalidate cache and refresh balances after transaction
+            invalidateBalanceCache();
+            await fetchBalances(true); // Force refresh after transaction
+            setAmount(""); // Clear input
+            
+            console.log("🔵 ========== DEPOSIT SUCCESS ==========");
+            
+            setIsLoading(false);
+            setShowStatus(false);
+          } catch (error) {
+            // Handle errors (will be caught by outer try-catch)
+            throw error;
+          }
+        };
+        
+        // Return early - transaction will be executed when button is clicked
+        return;
+      }
+      
+      // Desktop flow - proceed normally
+      console.log("🔵 Sending deposit transaction...");
+      const depositTx = await vaultContract.deposit(requiredAmount, account);
+      console.log("🔵 Deposit tx hash:", depositTx.hash);
+      console.log("🔵 Deposit tx:", {
+        to: depositTx.to,
+        from: depositTx.from,
+        data: depositTx.data,
+        value: depositTx.value?.toString(),
+        gasLimit: depositTx.gasLimit?.toString(),
+      });
+      
+      setTxHash(depositTx.hash);
+      setStatus("Waiting for confirmation...");
+
+      const receipt = await depositTx.wait();
+      console.log("✅ Deposit confirmed:", receipt.transactionHash);
+      console.log("🔵 Receipt status:", receipt.status);
+      console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
+
+      // Step 3: Refresh balances
+      setStatus("Updating balances...");
+      setShowStatus(false);
+      onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
+
+      // Invalidate cache and refresh balances after transaction
+      invalidateBalanceCache();
+      await fetchBalances(true); // Force refresh after transaction
+      setAmount(""); // Clear input
+      
+      console.log("🔵 ========== DEPOSIT SUCCESS ==========");
+
     } catch (error) {
-      console.error("❌ Deposit error:", error);
+      // Reset waiting state on error
+      setWaitingForConfirmation(false);
+      pendingTransactionRef.current = null;
+      
+      console.error("❌ ========== DEPOSIT ERROR ==========");
+      console.error("❌ Error object:", error);
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error code:", error.code);
+      console.error("❌ Error data:", error.data);
+      
+      if (error.receipt) {
+        console.error("❌ Transaction receipt:", error.receipt);
+        console.error("❌ Receipt status:", error.receipt.status);
+        console.error("❌ Receipt gas used:", error.receipt.gasUsed?.toString());
+        console.error("❌ Receipt logs:", error.receipt.logs);
+      }
+      
+      if (error.transaction) {
+        console.error("❌ Transaction details:", {
+          hash: error.transaction.hash,
+          to: error.transaction.to,
+          from: error.transaction.from,
+          data: error.transaction.data,
+          value: error.transaction.value?.toString(),
+        });
+      }
+      
+      // Try to decode revert reason if available
+      if (error.data && typeof error.data === 'string' && error.data.startsWith('0x')) {
+        console.error("❌ Revert data:", error.data);
+        try {
+          // Standard revert reason format: 0x08c379a0 (Error(string)) + offset + length + reason
+          if (error.data.startsWith('0x08c379a0') && error.data.length >= 138) {
+            try {
+              const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + error.data.slice(138));
+              console.error("❌ Decoded revert reason:", reason[0]);
+            } catch (decodeErr) {
+              console.error("❌ Could not decode ABI-encoded revert reason:", decodeErr.message);
+            }
+          } else if (error.data.length >= 138) {
+            // Try to decode as UTF-8 string
+            try {
+              const reason = ethers.utils.toUtf8String('0x' + error.data.slice(138));
+              if (reason && reason.trim().length > 0) {
+                console.error("❌ Revert reason (UTF-8):", reason);
+              }
+            } catch (e) {
+              console.error("❌ Could not decode as UTF-8");
+            }
+          }
+        } catch (decodeError) {
+          console.error("❌ Could not decode revert reason:", decodeError);
+        }
+      }
+      
+      // Try to get revert reason from the transaction receipt
+      if (error.receipt && error.receipt.status === 0 && error.transaction) {
+        try {
+          console.error("❌ Attempting to get revert reason from transaction...");
+          // Try to call the transaction again to get the revert reason
+          const provider = walletProvider;
+          if (provider && provider.call) {
+            try {
+              const result = await provider.call({
+                to: error.transaction.to,
+                data: error.transaction.data,
+                from: error.transaction.from || account,
+                gasLimit: error.transaction.gasLimit
+              });
+              console.error("❌ Call result (should be empty if reverted):", result);
+            } catch (callError) {
+              console.error("❌ Call error message:", callError.message);
+              if (callError.data && callError.data !== error.data) {
+                console.error("❌ Call error data (different):", callError.data);
+                // Try to decode this error data
+                try {
+                  if (callError.data && typeof callError.data === 'string' && 
+                      callError.data.startsWith('0x08c379a0') && callError.data.length >= 138) {
+                    const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + callError.data.slice(138));
+                    console.error("❌ Call error decoded reason:", reason[0]);
+                  }
+                } catch (e) {
+                  console.error("❌ Could not decode call error");
+                }
+              }
+            }
+          }
+        } catch (traceError) {
+          console.error("❌ Could not trace transaction:", traceError);
+        }
+      }
+      
       const msg = error.message || String(error);
       
-      if (msg.includes("user rejected") || msg.includes("denied")) {
-        onShowToast?.("error", "Transaction cancelled");
-      } else if (msg.includes("insufficient funds") || msg.includes("gas")) {
-        onShowToast?.("error", "Insufficient ETH for gas fees");
+      if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
+        onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
+      } else if (msg.includes("insufficient funds") || msg.includes("gas required exceeds")) {
+        onShowToast?.("error", "You don't have enough ETH to pay for gas fees. Please add ETH to your wallet.");
       } else {
-        onShowToast?.("error", "Deposit failed. Please try again.");
+        onShowToast?.("error", "Something went wrong with your deposit. Please try again.");
       }
+      
+      console.error("❌ ========== DEPOSIT ERROR END ==========");
+    } finally {
+      setIsLoading(false);
       setShowStatus(false);
     }
   };
 
-  // Execute Withdrawal (xPLS Vault → USDC)
+  // Execute Withdrawal (Vault → USDC)
   const executeWithdrawal = async () => {
+    console.log("🟠 ========== WITHDRAWAL START ==========");
+    console.log("🟠 Input amount (string):", amount);
+    console.log("🟠 Input amount (parsed float):", parseFloat(amount));
+    
     if (!account || !walletProvider) {
       onShowToast?.("error", "Please connect your wallet");
       return;
     }
 
-    if (!isCorrectNetwork) {
-      const result = await switchToBase();
-      if (!result.success) {
-        onShowToast?.("error", "Please switch to Base network");
-        return;
-      }
+    if (chainId !== 8453) {
+      onShowToast?.("error", "Please switch to Base network");
+      return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
@@ -245,52 +486,340 @@ const MorphoApp = ({ onShowToast, mode }) => {
       return;
     }
 
-    setShowStatus(true);
+    setIsLoading(true);
     setStatus("Preparing withdrawal...");
     setTxHash(null);
 
     try {
-      setStatus("Withdrawing from vault...");
-      onShowToast?.("info", "Withdrawing...");
+      const signer = walletProvider.getSigner();
+      console.log("🟠 Signer address:", await signer.getAddress());
 
-      // Withdraw assets (USDC amount)
-      const withdrawResult = await withdraw(walletProvider, amount, account, account);
+      // Create vault contract instance
+      const vaultContract = new ethers.Contract(
+        VAULT_ADDRESS,
+        VAULT_ABI,
+        signer
+      );
 
-      if (!withdrawResult.success) {
-        if (withdrawResult.error?.includes("rejected")) {
-          onShowToast?.("error", "Withdrawal cancelled");
-        } else if (withdrawResult.error?.includes("insufficient")) {
-          onShowToast?.("error", "Insufficient vault balance");
-        } else {
-          onShowToast?.("error", withdrawResult.error || "Withdrawal failed");
-        }
-        setShowStatus(false);
+      // Get vault token decimals and user's balance
+      const vaultDecimals = await vaultContract.decimals();
+      console.log("🟠 Vault decimals:", vaultDecimals);
+      
+      const userVaultBalance = await vaultContract.balanceOf(account);
+      console.log("🟠 User vault balance (raw shares):", userVaultBalance.toString());
+      
+      // Get asset value of current vault balance
+      const currentAssetsValue = await vaultContract.convertToAssets(userVaultBalance);
+      console.log("🟠 Current assets value (raw):", currentAssetsValue.toString());
+      console.log("🟠 Current assets value (formatted):", ethers.utils.formatUnits(currentAssetsValue, 6));
+
+      // User enters amount in USDC terms, we need to convert to vault shares if needed
+      // Using withdraw() function which takes assets (USDC) amount directly
+      let usdcAmount = ethers.utils.parseUnits(amount, 6); // USDC has 6 decimals
+      console.log("🟠 USDC amount (raw BigNumber):", usdcAmount.toString());
+      console.log("🟠 USDC amount (formatted check):", ethers.utils.formatUnits(usdcAmount, 6));
+      console.log("🟠 USDC amount string length:", usdcAmount.toString().length);
+      console.log("🟠 USDC amount hex:", usdcAmount.toHexString());
+
+      // CRITICAL: Check the actual maximum withdrawable amount from the vault
+      // This accounts for ERC-4626 rounding and prevents 0x4323a555 errors
+      const maxWithdrawable = await vaultContract.maxWithdraw(account);
+      console.log("🟠 Max withdrawable (from vault):", maxWithdrawable.toString());
+      console.log("🟠 Max withdrawable (formatted):", ethers.utils.formatUnits(maxWithdrawable, 6));
+
+      // Cap the withdrawal amount to maxWithdrawable if it exceeds it
+      if (usdcAmount.gt(maxWithdrawable)) {
+        console.warn("🟠 ⚠️ Requested amount exceeds maxWithdrawable, capping to max");
+        usdcAmount = maxWithdrawable;
+        const cappedAmountFormatted = ethers.utils.formatUnits(maxWithdrawable, 6);
+        console.log("🟠 Capped withdrawal amount:", cappedAmountFormatted);
+      }
+
+      // Check if user has enough vault tokens to withdraw this amount
+      // Convert the requested USDC amount to shares to check balance
+      const requiredShares = await vaultContract.convertToShares(usdcAmount);
+      console.log("🟠 Required shares (raw):", requiredShares.toString());
+      console.log("🟠 Required shares vs balance:", {
+        required: requiredShares.toString(),
+        available: userVaultBalance.toString(),
+        sufficient: userVaultBalance.gte(requiredShares)
+      });
+
+      if (userVaultBalance.lt(requiredShares)) {
+        // Calculate max withdrawable
+        const maxWithdrawableAssets = await vaultContract.convertToAssets(userVaultBalance);
+        const maxUsdc = ethers.utils.formatUnits(maxWithdrawableAssets, 6);
+        console.warn("🟠 Insufficient balance - max withdrawable:", maxUsdc);
+        onShowToast?.("error", `Insufficient vault balance. Maximum: ${parseFloat(maxUsdc).toFixed(2)} USDC`);
+        setIsLoading(false);
         return;
       }
 
-      if (withdrawResult.txHash) {
-        setTxHash(withdrawResult.txHash);
-        onShowToast?.("success", `Withdrawal successful!`, withdrawResult.txHash);
-        setStatus("Withdrawal completed!");
-        setAmount(""); // Clear input on success
+      setStatus("Withdrawing from vault...");
+
+      console.log("🟠 Vault address:", VAULT_ADDRESS);
+      console.log("🟠 Withdraw params:");
+      console.log("  - assets (usdcAmount):", usdcAmount.toString());
+      console.log("  - receiver (account):", account);
+      console.log("  - owner (account):", account);
+
+      // Check ETH balance for gas first
+      const ethBalance = await signer.getBalance();
+      console.log("🟠 ETH balance (raw):", ethBalance.toString());
+      console.log("🟠 ETH balance (formatted):", ethers.utils.formatEther(ethBalance));
+      
+      // Minimum gas required (rough estimate: 0.001 ETH should be enough for most transactions)
+      const minGasRequired = ethers.utils.parseEther("0.001");
+      if (ethBalance.lt(minGasRequired)) {
+        onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
+        setIsLoading(false);
+        return;
       }
 
+      // Try to simulate the call first to catch revert reasons
+      try {
+        const result = await vaultContract.callStatic.withdraw(usdcAmount, account, account);
+        console.log("🟠 ✅ Static call simulation passed - shares to burn:", result.toString());
+      } catch (simError) {
+        console.error("🟠 ❌ Static call simulation failed:", simError);
+        console.error("🟠 Simulation error message:", simError.message);
+        console.error("🟠 Simulation error data:", simError.data);
+        
+        // Check if it's a specific revert reason we can decode
+        if (simError.data && typeof simError.data === 'string') {
+          // Try to decode custom error
+          const errorData = simError.data;
+          console.error("🟠 Error data (hex):", errorData);
+          
+          // Common ERC-4626 errors
+          if (errorData === "0x4323a555") {
+            onShowToast?.("error", "Withdrawal amount exceeds available assets. Please check your balance.");
+          } else if (errorData.startsWith("0x08c379a0")) {
+            // Try to decode string error
+            try {
+              const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + errorData.slice(138));
+              onShowToast?.("error", `Transaction would fail: ${reason[0]}`);
+            } catch (e) {
+              onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
+            }
+          } else {
+            onShowToast?.("error", "Transaction simulation failed. Please check your balance and try again.");
+          }
+        } else {
+          onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Estimate gas with fallback - CRITICAL for reliable transactions
+      let gasLimit;
+      try {
+        const estimatedGas = await vaultContract.estimateGas.withdraw(usdcAmount, account, account);
+        // Add 20% buffer for safety
+        gasLimit = estimatedGas.mul(120).div(100);
+        console.log("🟠 ✅ Estimated gas:", estimatedGas.toString());
+        console.log("🟠 ✅ Gas limit with 20% buffer:", gasLimit.toString());
+      } catch (gasError) {
+        console.warn("🟠 ⚠️ Gas estimation failed, using fallback gas limit:", gasError.message);
+        // Fallback: Use a safe default gas limit for ERC-4626 withdrawals
+        // Typical withdrawal operations use 150k-300k gas, so 400k is a safe upper bound
+        gasLimit = ethers.BigNumber.from("400000");
+        console.log("🟠 ⚠️ Using fallback gas limit:", gasLimit.toString());
+        
+        // Even though estimation failed, if simulation passed, we can still try
+        // But log a warning
+        console.warn("🟠 ⚠️ Proceeding with fallback gas limit - transaction may still succeed");
+      }
+
+      // Verify we have enough ETH for the gas
+      const gasPrice = await signer.getGasPrice();
+      const maxGasCost = gasLimit.mul(gasPrice);
+      console.log("🟠 Gas price:", gasPrice.toString());
+      console.log("🟠 Max gas cost:", ethers.utils.formatEther(maxGasCost), "ETH");
+      
+      if (ethBalance.lt(maxGasCost)) {
+        onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.utils.formatEther(maxGasCost)} ETH but have ${ethers.utils.formatEther(ethBalance)} ETH.`);
+        setIsLoading(false);
+        return;
+      }
+
+      // On mobile, pause here and wait for user to click "Confirm in App" button
+      if (isMobileDevice()) {
+        console.log("🟠 Mobile device detected - waiting for user confirmation...");
+        setStatus("Confirm in App");
+        setWaitingForConfirmation(true);
+        
+        // Store the transaction function to execute when button is clicked
+        pendingTransactionRef.current = async () => {
+          try {
+            const withdrawTx = await temporarilyAllowDeeplinks(async () => {
+              // Use withdraw() function - takes assets (USDC amount) and returns shares
+              // withdraw(uint256 assets, address receiver, address owner)
+              console.log("🟠 Sending withdrawal transaction...");
+              console.log("🟠 Final transaction summary:", {
+                amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
+                receiver: account,
+                owner: account,
+                gasLimit: gasLimit.toString(),
+                vaultAddress: VAULT_ADDRESS
+              });
+              const tx = await vaultContract.withdraw(usdcAmount, account, account, {
+                gasLimit: gasLimit // Always specify gas limit explicitly
+              });
+              console.log("🟠 ✅ Withdraw tx hash:", tx.hash);
+              console.log("🟠 ✅ Withdraw tx:", {
+                to: tx.to,
+                from: tx.from,
+                data: tx.data,
+                value: tx.value?.toString(),
+                gasLimit: tx.gasLimit?.toString(),
+                gasPrice: tx.gasPrice?.toString(),
+              });
+              
+              setTxHash(tx.hash);
+              setStatus("Waiting for confirmation...");
+              setWaitingForConfirmation(false);
+              
+              return tx;
+            });
+            
+            // Wait for receipt
+            const receipt = await withdrawTx.wait();
+            console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
+            console.log("🟠 Receipt status:", receipt.status);
+            console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
+            console.log("🟠 Transaction confirmation details:", {
+              txHash: receipt.transactionHash,
+              blockNumber: receipt.blockNumber,
+              gasUsed: receipt.gasUsed.toString(),
+              effectiveGasPrice: receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : 'N/A',
+              status: receipt.status === 1 ? 'Success' : 'Failed'
+            });
+
+            setStatus("Updating balances...");
+            setShowStatus(false);
+            onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
+
+            // Invalidate cache and refresh balances after transaction
+            invalidateBalanceCache();
+            await fetchBalances(true); // Force refresh after transaction
+            setAmount(""); // Clear input
+            
+            console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
+            
+            setIsLoading(false);
+            setShowStatus(false);
+          } catch (error) {
+            // Handle errors (will be caught by outer try-catch)
+            throw error;
+          }
+        };
+        
+        // Return early - transaction will be executed when button is clicked
+        return;
+      }
+      
+      // Desktop flow - proceed normally
+      // Use withdraw() function - takes assets (USDC amount) and returns shares
+      // withdraw(uint256 assets, address receiver, address owner)
+      console.log("🟠 Sending withdrawal transaction...");
+      console.log("🟠 Final transaction summary:", {
+        amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
+        receiver: account,
+        owner: account,
+        gasLimit: gasLimit.toString(),
+        vaultAddress: VAULT_ADDRESS
+      });
+      const withdrawTx = await vaultContract.withdraw(usdcAmount, account, account, {
+        gasLimit: gasLimit // Always specify gas limit explicitly
+      });
+      console.log("🟠 ✅ Withdraw tx hash:", withdrawTx.hash);
+      console.log("🟠 ✅ Withdraw tx:", {
+        to: withdrawTx.to,
+        from: withdrawTx.from,
+        data: withdrawTx.data,
+        value: withdrawTx.value?.toString(),
+        gasLimit: withdrawTx.gasLimit?.toString(),
+        gasPrice: withdrawTx.gasPrice?.toString(),
+      });
+      
+      setTxHash(withdrawTx.hash);
+      setStatus("Waiting for confirmation...");
+
+      const receipt = await withdrawTx.wait();
+      console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
+      console.log("🟠 Receipt status:", receipt.status);
+      console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
+      console.log("🟠 Transaction confirmation details:", {
+        txHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        effectiveGasPrice: receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : 'N/A',
+        status: receipt.status === 1 ? 'Success' : 'Failed'
+      });
+
+      setStatus("Updating balances...");
+      setShowStatus(false);
+      onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
+
+      // Invalidate cache and refresh balances after transaction
+      invalidateBalanceCache();
+      await fetchBalances(true); // Force refresh after transaction
+      setAmount(""); // Clear input
+      
+      console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
+
     } catch (error) {
-      console.error("❌ Withdrawal error:", error);
+      // Reset waiting state on error
+      setWaitingForConfirmation(false);
+      pendingTransactionRef.current = null;
+      
+      console.error("❌ ========== WITHDRAWAL ERROR ==========");
+      console.error("❌ Error object:", error);
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error code:", error.code);
+      console.error("❌ Error data:", error.data);
+      
+      if (error.receipt) {
+        console.error("❌ Transaction receipt:", error.receipt);
+        console.error("❌ Receipt status:", error.receipt.status);
+        console.error("❌ Receipt gas used:", error.receipt.gasUsed?.toString());
+        console.error("❌ Receipt logs:", error.receipt.logs);
+        console.error("❌ Receipt block number:", error.receipt.blockNumber);
+      }
+      
+      if (error.transaction) {
+        console.error("❌ Transaction details:", {
+          hash: error.transaction.hash,
+          to: error.transaction.to,
+          from: error.transaction.from,
+          data: error.transaction.data,
+          value: error.transaction.value?.toString(),
+        });
+      }
+      
+      // Try to decode revert reason if available
+      if (error.data && typeof error.data === 'string' && error.data.startsWith('0x')) {
+        console.error("❌ Revert data:", error.data);
+      }
+      
       const msg = error.message || String(error);
       
-      if (msg.includes("user rejected") || msg.includes("denied")) {
-        onShowToast?.("error", "Transaction cancelled");
-      } else if (msg.includes("insufficient funds") || msg.includes("gas")) {
-        onShowToast?.("error", "Insufficient ETH for gas fees");
+      if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
+        onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
       } else {
-        onShowToast?.("error", "Withdrawal failed. Please try again.");
+        onShowToast?.("error", "Something went wrong with your withdrawal. Please try again.");
       }
+      
+      console.error("❌ ========== WITHDRAWAL ERROR END ==========");
+    } finally {
+      setIsLoading(false);
       setShowStatus(false);
     }
   };
 
-  const handleActionClick = async () => {
+  const handleActionClick = () => {
     setTxHash(null);
     
     if (!isConnected) {
@@ -298,72 +827,49 @@ const MorphoApp = ({ onShowToast, mode }) => {
       return;
     }
 
-    if (!isCorrectNetwork) {
-      const result = await switchToBase();
-      if (!result.success) {
-        onShowToast?.("error", "Please switch to Base network");
-        return;
-      }
-      // Wait a bit for network switch
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    // Check if button should be disabled
-    if (!amount || parseFloat(amount) <= 0) {
-      onShowToast?.("error", "Please enter an amount");
+    if (chainId !== 8453) {
+      onShowToast?.("error", "Please switch to Base network");
       return;
     }
 
+    setShowStatus(true);
     if (mode === "deposit") {
-      const amountBN = ethers.utils.parseUnits(amount, USDC_DECIMALS);
-      const balanceBN = ethers.utils.parseUnits(usdcBalance || "0", USDC_DECIMALS);
-      if (balanceBN.lt(amountBN)) {
-        onShowToast?.("error", "Insufficient USDC balance");
-        return;
-      }
-      await executeDeposit();
+      executeDeposit();
     } else {
-      await executeWithdrawal();
+      executeWithdrawal();
     }
   };
 
-  // Determine button text and state
-  const getButtonText = () => {
-    if (isLoading) {
-      if (isApprovePending) return "APPROVING...";
-      if (isDepositPending) return "DEPOSITING...";
-      if (isWithdrawPending) return "WITHDRAWING...";
-      return "PROCESSING...";
+  // Handle "Confirm in App" button click
+  const handleConfirmInApp = async () => {
+    if (!pendingTransactionRef.current) {
+      console.error("❌ No pending transaction to execute");
+      return;
     }
 
-    if (mode === "deposit") {
-      // Check if approval is needed
-      if (amount && parseFloat(amount) > 0) {
-        const amountBN = ethers.utils.parseUnits(amount, USDC_DECIMALS);
-        const allowanceBN = ethers.utils.parseUnits(allowance || "0", USDC_DECIMALS);
-        if (allowanceBN.lt(amountBN)) {
-          return "APPROVE";
-        }
+    try {
+      setWaitingForConfirmation(false);
+      setIsLoading(true);
+      await pendingTransactionRef.current();
+      pendingTransactionRef.current = null;
+    } catch (error) {
+      console.error("❌ Transaction error:", error);
+      setWaitingForConfirmation(false);
+      pendingTransactionRef.current = null;
+      
+      const msg = error.message || String(error);
+      
+      if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
+        onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
+      } else if (msg.includes("insufficient funds") || msg.includes("gas required exceeds")) {
+        onShowToast?.("error", "You don't have enough ETH to pay for gas fees. Please add ETH to your wallet.");
+      } else {
+        onShowToast?.("error", `Something went wrong with your ${mode}. Please try again.`);
       }
-      return "DEPOSIT";
-    } else {
-      return "WITHDRAW";
+      
+      setIsLoading(false);
+      setShowStatus(false);
     }
-  };
-
-  const isButtonDisabled = () => {
-    if (isLoading) return true;
-    if (!isConnected) return true;
-    if (!isCorrectNetwork) return false; // Allow click to trigger network switch
-    if (!amount || parseFloat(amount) <= 0) return true;
-    
-    if (mode === "deposit") {
-      const amountBN = ethers.utils.parseUnits(amount, USDC_DECIMALS);
-      const balanceBN = ethers.utils.parseUnits(usdcBalance || "0", USDC_DECIMALS);
-      return balanceBN.lt(amountBN);
-    }
-    
-    return false;
   };
 
   const yieldProjection = calculateYield();
@@ -371,7 +877,7 @@ const MorphoApp = ({ onShowToast, mode }) => {
 
   return (
     <>
-      <div className="morpho-container">
+      <div className="vault-container">
         <div className="pool-detail-card">
           <h3 className="pool-title">X-QUO VAULT</h3>
           
@@ -391,24 +897,24 @@ const MorphoApp = ({ onShowToast, mode }) => {
           </div>
         </div>
 
-        <div className="morpho-token-box">
-          <div className="morpho-token-header">
-            <span className="morpho-balance-label">
+        <div className="vault-token-box">
+          <div className="vault-token-header">
+            <span className="vault-balance-label">
               Avail. {mode === "deposit"
                 ? parseFloat(usdcBalance).toFixed(2)
                 : parseFloat(vaultBalance).toFixed(6)}{" "}
-              {mode === "deposit" ? "USDC" : "Vault"}
+              {mode === "deposit" ? "USDC" : "xPLS"}
             </span>
-            <button onClick={setMaxAmount} className="morpho-max-button">
+            <button onClick={setMaxAmount} className="vault-max-button">
               MAX
             </button>
           </div>
 
-          <div className="morpho-input-row">
+          <div className="vault-input-row">
             <input
               type="text"
               inputMode="decimal"
-              className="morpho-amount-input"
+              className="vault-amount-input"
               placeholder="0.0"
               value={amount}
               onChange={(e) => {
@@ -420,7 +926,7 @@ const MorphoApp = ({ onShowToast, mode }) => {
             />
           </div>
 
-          <div className="morpho-usd-value">
+          <div className="vault-usd-value">
             {amount && parseFloat(amount) > 0
               ? `≈ $${parseFloat(amount).toFixed(2)}`
               : "≈ $0.00"}
@@ -482,23 +988,27 @@ const MorphoApp = ({ onShowToast, mode }) => {
         )}
 
         <button
-          className="morpho-action-button"
+          className="vault-action-button"
           onClick={handleActionClick}
-          disabled={isButtonDisabled()}
+          disabled={isLoading || !amount || parseFloat(amount) <= 0}
         >
-          <span className="morpho-button-text">
-            {getButtonText()}
+          <span className="vault-button-text">
+            {isLoading
+              ? "PROCESSING..."
+              : mode === "deposit"
+              ? "DEPOSIT"
+              : "WITHDRAW"}
           </span>
         </button>
       </div>
 
       {showWarning &&
         ReactDOM.createPortal(
-          <div className="morpho-warning" onClick={closeWarning}>
-            <div className="morpho-warning__content" onClick={(e) => e.stopPropagation()}>
-              <h3 className="morpho-warning__title">Wallet not connected</h3>
-              <p className="morpho-warning__text">Connect Wallet to continue.</p>
-              <div className="morpho-warning__actions">
+          <div className="vault-warning" onClick={closeWarning}>
+            <div className="vault-warning__content" onClick={(e) => e.stopPropagation()}>
+              <h3 className="vault-warning__title">Wallet not connected</h3>
+              <p className="vault-warning__text">Connect Wallet to continue.</p>
+              <div className="vault-warning__actions">
                 <button className="btn-secondary" onClick={closeWarning}>Close</button>
                 <button className="btn-primary" onClick={() => { closeWarning(); connectWallet(); }}>
                   Connect Wallet
@@ -514,7 +1024,7 @@ const MorphoApp = ({ onShowToast, mode }) => {
           <div className="status-overlay">
             <div className="status-modal-positioned">
               <h3 className="status-modal-title">Operation Status</h3>
-              {isLoading && (
+              {isLoading && !waitingForConfirmation && (
                 <div className="status-spinner">
                   <div className="spinner"></div>
                 </div>
@@ -522,6 +1032,29 @@ const MorphoApp = ({ onShowToast, mode }) => {
               <p className="status-modal-text">
                 {status || "Waiting..."}
               </p>
+              {waitingForConfirmation && (
+                <button 
+                  className="status-confirm-btn" 
+                  onClick={handleConfirmInApp}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    backgroundColor: '#0070f3',
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: '16px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginTop: '16px',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#0051cc'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = '#0070f3'}
+                >
+                  Confirm in App
+                </button>
+              )}
               {txHash && (
                 <div style={{ marginTop: 12 }}>
                   <a
@@ -534,7 +1067,7 @@ const MorphoApp = ({ onShowToast, mode }) => {
                   </a>
                 </div>
               )}
-              {!isLoading && (
+              {!isLoading && !waitingForConfirmation && (
                 <button className="status-close-btn" onClick={() => setShowStatus(false)}>
                   Close
                 </button>
@@ -547,5 +1080,5 @@ const MorphoApp = ({ onShowToast, mode }) => {
   );
 };
 
-export default MorphoApp;
+export default VaultApp;
 
