@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { temporarilyAllowDeeplinks, isMobileDevice } from "../utils/walletconnectProvider";
+import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 
 // Vault address on Base
@@ -304,6 +305,13 @@ const VaultApp = ({ onShowToast, mode }) => {
             setShowStatus(false);
             onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
 
+            //GTM Deposit
+            sendGTMEvent('Deposit', {
+              apy_percent: BASE_APY,
+              amount_usd: parseFloat(amount),
+              network: 'Base'
+            });
+
             // Invalidate cache and refresh balances after transaction
             invalidateBalanceCache();
             await fetchBalances(true); // Force refresh after transaction
@@ -347,6 +355,13 @@ const VaultApp = ({ onShowToast, mode }) => {
       setStatus("Updating balances...");
       setShowStatus(false);
       onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
+
+      //GTM Deposit
+      sendGTMEvent('Deposit', {
+        apy_percent: BASE_APY,
+        amount_usd: parseFloat(amount),
+        network: 'Base'
+      });
 
       // Invalidate cache and refresh balances after transaction
       invalidateBalanceCache();
@@ -701,6 +716,13 @@ const VaultApp = ({ onShowToast, mode }) => {
             setShowStatus(false);
             onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
 
+            //GTM Withdrawal
+            sendGTMEvent('Withdrawal', {
+              apy_percent: BASE_APY,
+              amount_usd: parseFloat(amount),
+              network: 'Base'
+            });
+
             // Invalidate cache and refresh balances after transaction
             invalidateBalanceCache();
             await fetchBalances(true); // Force refresh after transaction
@@ -762,6 +784,13 @@ const VaultApp = ({ onShowToast, mode }) => {
       setStatus("Updating balances...");
       setShowStatus(false);
       onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
+
+      //GTM Withdrawal
+      sendGTMEvent('Withdrawal', {
+        apy_percent: BASE_APY,
+        amount_usd: parseFloat(amount),
+        network: 'Base'
+      });
 
       // Invalidate cache and refresh balances after transaction
       invalidateBalanceCache();
