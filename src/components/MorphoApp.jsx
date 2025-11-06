@@ -26,12 +26,21 @@ const VAULT_ABI = [
   "function totalAssets() view returns (uint256)",
   "function previewDeposit(uint256 assets) view returns (uint256 shares)",
   "function previewWithdraw(uint256 assets) view returns (uint256 shares)",
-  "function maxWithdraw(address owner) view returns (uint256)",
-  "function paused() view returns (bool)"
+  "function maxWithdraw(address owner) view returns (uint256)" // Maximum withdrawable assets
 ];
 
 const VaultApp = ({ onShowToast, mode }) => {
-  const { walletAddress: account, isConnected, connectWallet, provider: walletProvider, chainId } = useWallet();
+  const { 
+    walletAddress: account, 
+    isConnected, 
+    connectWallet, 
+    provider: walletProvider, 
+    chainId,
+    usdcBalance,
+    vaultBalance,
+    fetchBalances,
+    invalidateBalanceCache
+  } = useWallet();
   
   const [showWarning, setShowWarning] = useState(false);
   const [amount, setAmount] = useState("");
@@ -40,237 +49,11 @@ const VaultApp = ({ onShowToast, mode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
   
-  const [usdcBalance, setUsdcBalance] = useState("0");
-  const [vaultBalance, setVaultBalance] = useState("0");
-  
-  // In-memory balance cache
-  const balanceCacheRef = useRef(null);
-  const hasFetchedOnConnectRef = useRef(false);
-  const isFetchingRef = useRef(false);
-  
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
   const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
   
   const BASE_APY = 8.5; // Vault APY
-
-  // Invalidate balance cache
-  const invalidateBalanceCache = useCallback(() => {
-    console.log('💰 [BALANCE] Cache invalidated', { 
-      hadCache: !!balanceCacheRef.current,
-      previousCache: balanceCacheRef.current ? {
-        account: balanceCacheRef.current.account,
-        chainId: balanceCacheRef.current.chainId,
-        age: Date.now() - balanceCacheRef.current.timestamp
-      } : null
-    });
-    balanceCacheRef.current = null;
-  }, []);
-
-  // Fetch balances function (reusable) - optimized with caching
-  const fetchBalances = useCallback(async (forceRefresh = false) => {
-    const startTime = performance.now();
-    console.log('💰 [BALANCE] fetchBalances called', { forceRefresh, account, chainId, hasProvider: !!walletProvider });
-    
-    // Prevent duplicate concurrent fetches
-    if (isFetchingRef.current) {
-      console.log('💰 [BALANCE] Fetch already in progress, skipping duplicate');
-      return;
-    }
-    
-    if (!account || !walletProvider) {
-      console.log('💰 [BALANCE] Early return: missing account or provider');
-      setUsdcBalance("0");
-      setVaultBalance("0");
-      balanceCacheRef.current = null;
-      return;
-    }
-
-    if (chainId !== 8453) {
-      console.log('💰 [BALANCE] Early return: wrong chainId', chainId);
-      setUsdcBalance("0");
-      setVaultBalance("0");
-      balanceCacheRef.current = null;
-      return;
-    }
-    
-    // Mark as fetching
-    isFetchingRef.current = true;
-
-    // Check cache first (unless force refresh)
-    const cache = balanceCacheRef.current;
-    const cacheCheckTime = performance.now();
-    if (!forceRefresh && cache && 
-        cache.account === account && 
-        cache.chainId === chainId) {
-      // Use cached balances
-      console.log('💰 [BALANCE] Using cache', { 
-        cacheAge: Date.now() - cache.timestamp,
-        usdcBalance: cache.usdcBalance,
-        vaultBalance: cache.vaultBalance,
-        cacheCheckTime: `${(cacheCheckTime - startTime).toFixed(2)}ms`
-      });
-      setUsdcBalance(cache.usdcBalance);
-      setVaultBalance(cache.vaultBalance);
-      return;
-    }
-    console.log('💰 [BALANCE] Cache miss or force refresh', { 
-      hasCache: !!cache,
-      cacheAccount: cache?.account,
-      cacheChainId: cache?.chainId,
-      cacheCheckTime: `${(cacheCheckTime - startTime).toFixed(2)}ms`
-    });
-
-    try {
-      const contractCreationStart = performance.now();
-      // Fetch all data in parallel for speed
-      const usdcContract = new ethers.Contract(
-        USDC_ADDRESS,
-        ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"],
-        walletProvider
-      );
-      
-      const vaultContract = new ethers.Contract(
-        VAULT_ADDRESS,
-        VAULT_ABI,
-        walletProvider
-      );
-      const contractCreationTime = performance.now() - contractCreationStart;
-      console.log('💰 [BALANCE] Contracts created', { contractCreationTime: `${contractCreationTime.toFixed(2)}ms` });
-
-      // Parallel fetch all data
-      const rpcCallStart = performance.now();
-      console.log('💰 [BALANCE] Starting parallel RPC calls...');
-      const [usdcBal, usdcDecimals, vaultTokenBalance, network] = await Promise.all([
-        usdcContract.balanceOf(account),
-        usdcContract.decimals(),
-        vaultContract.balanceOf(account),
-        walletProvider.getNetwork()
-      ]);
-      const rpcCallTime = performance.now() - rpcCallStart;
-      console.log('💰 [BALANCE] RPC calls completed', { 
-        rpcCallTime: `${rpcCallTime.toFixed(2)}ms`,
-        usdcBalanceRaw: usdcBal.toString(),
-        vaultBalanceRaw: vaultTokenBalance.toString(),
-        decimals: usdcDecimals.toString(),
-        networkChainId: network.chainId
-      });
-      
-      // Verify network matches
-      if (network.chainId !== 8453) {
-        console.log('💰 [BALANCE] Network mismatch, returning early', { networkChainId: network.chainId });
-        setUsdcBalance("0");
-        setVaultBalance("0");
-        balanceCacheRef.current = null;
-        return;
-      }
-
-      // Format USDC balance
-      const formatStart = performance.now();
-      const formattedUsdc = ethers.utils.formatUnits(usdcBal, usdcDecimals);
-      const formatTime = performance.now() - formatStart;
-      console.log('💰 [BALANCE] USDC formatted', { 
-        formattedUsdc,
-        formatTime: `${formatTime.toFixed(2)}ms`
-      });
-      
-      // Convert vault tokens to USDC value
-      let formattedVaultBalance = "0";
-      if (!vaultTokenBalance.isZero()) {
-        const convertStart = performance.now();
-        console.log('💰 [BALANCE] Converting vault tokens to assets...');
-        const assetsValue = await vaultContract.convertToAssets(vaultTokenBalance);
-        const convertTime = performance.now() - convertStart;
-        formattedVaultBalance = ethers.utils.formatUnits(assetsValue, 6); // USDC has 6 decimals
-        console.log('💰 [BALANCE] Vault conversion completed', { 
-          assetsValueRaw: assetsValue.toString(),
-          formattedVaultBalance,
-          convertTime: `${convertTime.toFixed(2)}ms`
-        });
-      } else {
-        console.log('💰 [BALANCE] Vault balance is zero, skipping conversion');
-      }
-
-      // Update state and cache
-      const stateUpdateStart = performance.now();
-      setUsdcBalance(formattedUsdc);
-      setVaultBalance(formattedVaultBalance);
-      
-      // Store in cache
-      balanceCacheRef.current = {
-        usdcBalance: formattedUsdc,
-        vaultBalance: formattedVaultBalance,
-        account,
-        chainId,
-        timestamp: Date.now()
-      };
-      const stateUpdateTime = performance.now() - stateUpdateStart;
-      const totalTime = performance.now() - startTime;
-      
-      console.log('💰 [BALANCE] ✅ Fetch complete', {
-        usdcBalance: formattedUsdc,
-        vaultBalance: formattedVaultBalance,
-        stateUpdateTime: `${stateUpdateTime.toFixed(2)}ms`,
-        totalTime: `${totalTime.toFixed(2)}ms`,
-        breakdown: {
-          contractCreation: `${contractCreationTime.toFixed(2)}ms`,
-          rpcCalls: `${rpcCallTime.toFixed(2)}ms`,
-          formatting: `${formatTime.toFixed(2)}ms`,
-          stateUpdate: `${stateUpdateTime.toFixed(2)}ms`
-        }
-      });
-    } catch (error) {
-      const totalTime = performance.now() - startTime;
-      console.error('💰 [BALANCE] ❌ Error fetching balances', {
-        error: error.message,
-        errorCode: error.code,
-        totalTime: `${totalTime.toFixed(2)}ms`,
-        stack: error.stack
-      });
-      
-      // Handle network change errors gracefully
-      if (error.code === 'NETWORK_ERROR' || error.message?.includes('underlying network changed')) {
-        console.log('💰 [BALANCE] Network error detected, not resetting balances');
-        isFetchingRef.current = false;
-        return; // Don't reset balances - wait for provider to update
-      }
-      
-      setUsdcBalance("0");
-      setVaultBalance("0");
-      balanceCacheRef.current = null;
-    } finally {
-      // Always clear fetching flag
-      isFetchingRef.current = false;
-    }
-  }, [account, walletProvider, chainId]);
-
-  // Fetch balances when account/chainId/provider changes or on initial connection
-  // Merged both useEffects to prevent duplicate fetches
-  useEffect(() => {
-    // Reset flag when disconnected
-    if (!isConnected) {
-      console.log('💰 [BALANCE] Resetting fetch flag on disconnect');
-      hasFetchedOnConnectRef.current = false;
-      return;
-    }
-    
-    // Only fetch if we have all required dependencies
-    if (!account || !walletProvider || chainId !== 8453) {
-      return;
-    }
-    
-    // Force refresh on initial connection, use cache for subsequent changes
-    const shouldForceRefresh = !hasFetchedOnConnectRef.current;
-    if (shouldForceRefresh) {
-      console.log('💰 [BALANCE] Triggering force refresh on initial connection');
-      hasFetchedOnConnectRef.current = true;
-      fetchBalances(true);
-    } else {
-      console.log('💰 [BALANCE] useEffect triggered (dependency change)', { account, chainId, hasProvider: !!walletProvider });
-      fetchBalances(false); // Use cache for subsequent dependency changes
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, account, walletProvider, chainId]); // Depend on isConnected too to handle disconnects
 
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
@@ -504,12 +287,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
 
       // Invalidate cache and refresh balances after transaction
-      console.log("🔵 Refreshing balances after deposit transaction...");
       invalidateBalanceCache();
-      const balanceRefreshStart = performance.now();
       await fetchBalances(true); // Force refresh after transaction
-      const balanceRefreshTime = performance.now() - balanceRefreshStart;
-      console.log(`🔵 Balance refresh completed in ${balanceRefreshTime.toFixed(2)}ms`);
       setAmount(""); // Clear input
       
       console.log("🔵 ========== DEPOSIT SUCCESS ==========");
@@ -670,11 +449,25 @@ const VaultApp = ({ onShowToast, mode }) => {
 
       // User enters amount in USDC terms, we need to convert to vault shares if needed
       // Using withdraw() function which takes assets (USDC) amount directly
-      const usdcAmount = ethers.utils.parseUnits(amount, 6); // USDC has 6 decimals
+      let usdcAmount = ethers.utils.parseUnits(amount, 6); // USDC has 6 decimals
       console.log("🟠 USDC amount (raw BigNumber):", usdcAmount.toString());
       console.log("🟠 USDC amount (formatted check):", ethers.utils.formatUnits(usdcAmount, 6));
       console.log("🟠 USDC amount string length:", usdcAmount.toString().length);
       console.log("🟠 USDC amount hex:", usdcAmount.toHexString());
+
+      // CRITICAL: Check the actual maximum withdrawable amount from the vault
+      // This accounts for ERC-4626 rounding and prevents 0x4323a555 errors
+      const maxWithdrawable = await vaultContract.maxWithdraw(account);
+      console.log("🟠 Max withdrawable (from vault):", maxWithdrawable.toString());
+      console.log("🟠 Max withdrawable (formatted):", ethers.utils.formatUnits(maxWithdrawable, 6));
+
+      // Cap the withdrawal amount to maxWithdrawable if it exceeds it
+      if (usdcAmount.gt(maxWithdrawable)) {
+        console.warn("🟠 ⚠️ Requested amount exceeds maxWithdrawable, capping to max");
+        usdcAmount = maxWithdrawable;
+        const cappedAmountFormatted = ethers.utils.formatUnits(maxWithdrawable, 6);
+        console.log("🟠 Capped withdrawal amount:", cappedAmountFormatted);
+      }
 
       // Check if user has enough vault tokens to withdraw this amount
       // Convert the requested USDC amount to shares to check balance
@@ -696,59 +489,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         return;
       }
 
-      // Check vault liquidity and max withdrawable amount
-      console.log("🟠 Checking vault liquidity...");
-      try {
-        // Check if vault is paused
-        try {
-          const isPaused = await vaultContract.paused();
-          if (isPaused) {
-            console.warn("🟠 Vault is paused");
-            onShowToast?.("error", "Withdrawals are currently paused. Please try again later.");
-            setIsLoading(false);
-            return;
-          }
-        } catch (pausedError) {
-          // If paused() doesn't exist, that's fine - vault might not have pause functionality
-          console.log("🟠 Vault doesn't have paused() function or it's not paused");
-        }
-
-        // Check max withdrawable (this is the actual limit based on vault liquidity)
-        try {
-          const maxWithdrawable = await vaultContract.maxWithdraw(account);
-          console.log("🟠 Max withdrawable (raw):", maxWithdrawable.toString());
-          console.log("🟠 Max withdrawable (formatted):", ethers.utils.formatUnits(maxWithdrawable, 6));
-          
-          if (maxWithdrawable.lt(usdcAmount)) {
-            const maxUsdcFormatted = ethers.utils.formatUnits(maxWithdrawable, 6);
-            console.warn("🟠 Vault liquidity insufficient - max withdrawable:", maxUsdcFormatted);
-            onShowToast?.("error", `Vault has insufficient liquidity. Maximum withdrawable: ${parseFloat(maxUsdcFormatted).toFixed(2)} USDC`);
-            setIsLoading(false);
-            return;
-          }
-        } catch (maxWithdrawError) {
-          // If maxWithdraw() doesn't exist, fall back to totalAssets check
-          console.log("🟠 maxWithdraw() not available, checking totalAssets instead");
-        }
-
-        // Also check total assets in vault as a fallback/supplementary check
-        const totalAssets = await vaultContract.totalAssets();
-        console.log("🟠 Vault totalAssets (raw):", totalAssets.toString());
-        console.log("🟠 Vault totalAssets (formatted):", ethers.utils.formatUnits(totalAssets, 6));
-        
-        if (totalAssets.lt(usdcAmount)) {
-          const totalAssetsFormatted = ethers.utils.formatUnits(totalAssets, 6);
-          console.warn("🟠 Vault total assets insufficient:", totalAssetsFormatted);
-          onShowToast?.("error", `Vault has insufficient assets. Available: ${parseFloat(totalAssetsFormatted).toFixed(2)} USDC`);
-          setIsLoading(false);
-          return;
-        }
-      } catch (liquidityError) {
-        console.error("🟠 Error checking vault liquidity:", liquidityError);
-        // Continue anyway - the contract will revert if insufficient, but we tried our best
-        console.warn("🟠 Proceeding with withdrawal despite liquidity check error - contract will revert if insufficient");
-      }
-
       setStatus("Withdrawing from vault...");
 
       console.log("🟠 Vault address:", VAULT_ADDRESS);
@@ -757,36 +497,108 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("  - receiver (account):", account);
       console.log("  - owner (account):", account);
 
-      // Try to estimate gas first
-      try {
-        const estimatedGas = await vaultContract.estimateGas.withdraw(usdcAmount, account, account);
-        console.log("🟠 Estimated gas:", estimatedGas.toString());
-      } catch (gasError) {
-        console.warn("🟠 Gas estimation failed:", gasError.message);
-        console.warn("🟠 Gas error data:", gasError.data);
+      // Check ETH balance for gas first
+      const ethBalance = await signer.getBalance();
+      console.log("🟠 ETH balance (raw):", ethBalance.toString());
+      console.log("🟠 ETH balance (formatted):", ethers.utils.formatEther(ethBalance));
+      
+      // Minimum gas required (rough estimate: 0.001 ETH should be enough for most transactions)
+      const minGasRequired = ethers.utils.parseEther("0.001");
+      if (ethBalance.lt(minGasRequired)) {
+        onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
+        setIsLoading(false);
+        return;
       }
 
-      // Try to simulate the call
+      // Try to simulate the call first to catch revert reasons
       try {
         const result = await vaultContract.callStatic.withdraw(usdcAmount, account, account);
-        console.log("🟠 Simulated withdrawal result (shares):", result.toString());
+        console.log("🟠 ✅ Static call simulation passed - shares to burn:", result.toString());
       } catch (simError) {
-        console.error("🟠 Static call simulation failed:", simError);
+        console.error("🟠 ❌ Static call simulation failed:", simError);
         console.error("🟠 Simulation error message:", simError.message);
         console.error("🟠 Simulation error data:", simError.data);
+        
+        // Check if it's a specific revert reason we can decode
+        if (simError.data && typeof simError.data === 'string') {
+          // Try to decode custom error
+          const errorData = simError.data;
+          console.error("🟠 Error data (hex):", errorData);
+          
+          // Common ERC-4626 errors
+          if (errorData === "0x4323a555") {
+            onShowToast?.("error", "Withdrawal amount exceeds available assets. Please check your balance.");
+          } else if (errorData.startsWith("0x08c379a0")) {
+            // Try to decode string error
+            try {
+              const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + errorData.slice(138));
+              onShowToast?.("error", `Transaction would fail: ${reason[0]}`);
+            } catch (e) {
+              onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
+            }
+          } else {
+            onShowToast?.("error", "Transaction simulation failed. Please check your balance and try again.");
+          }
+        } else {
+          onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Estimate gas with fallback - CRITICAL for reliable transactions
+      let gasLimit;
+      try {
+        const estimatedGas = await vaultContract.estimateGas.withdraw(usdcAmount, account, account);
+        // Add 20% buffer for safety
+        gasLimit = estimatedGas.mul(120).div(100);
+        console.log("🟠 ✅ Estimated gas:", estimatedGas.toString());
+        console.log("🟠 ✅ Gas limit with 20% buffer:", gasLimit.toString());
+      } catch (gasError) {
+        console.warn("🟠 ⚠️ Gas estimation failed, using fallback gas limit:", gasError.message);
+        // Fallback: Use a safe default gas limit for ERC-4626 withdrawals
+        // Typical withdrawal operations use 150k-300k gas, so 400k is a safe upper bound
+        gasLimit = ethers.BigNumber.from("400000");
+        console.log("🟠 ⚠️ Using fallback gas limit:", gasLimit.toString());
+        
+        // Even though estimation failed, if simulation passed, we can still try
+        // But log a warning
+        console.warn("🟠 ⚠️ Proceeding with fallback gas limit - transaction may still succeed");
+      }
+
+      // Verify we have enough ETH for the gas
+      const gasPrice = await signer.getGasPrice();
+      const maxGasCost = gasLimit.mul(gasPrice);
+      console.log("🟠 Gas price:", gasPrice.toString());
+      console.log("🟠 Max gas cost:", ethers.utils.formatEther(maxGasCost), "ETH");
+      
+      if (ethBalance.lt(maxGasCost)) {
+        onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.utils.formatEther(maxGasCost)} ETH but have ${ethers.utils.formatEther(ethBalance)} ETH.`);
+        setIsLoading(false);
+        return;
       }
 
       // Use withdraw() function - takes assets (USDC amount) and returns shares
       // withdraw(uint256 assets, address receiver, address owner)
       console.log("🟠 Sending withdrawal transaction...");
-      const withdrawTx = await vaultContract.withdraw(usdcAmount, account, account);
-      console.log("🟠 Withdraw tx hash:", withdrawTx.hash);
-      console.log("🟠 Withdraw tx:", {
+      console.log("🟠 Final transaction summary:", {
+        amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
+        receiver: account,
+        owner: account,
+        gasLimit: gasLimit.toString(),
+        vaultAddress: VAULT_ADDRESS
+      });
+      const withdrawTx = await vaultContract.withdraw(usdcAmount, account, account, {
+        gasLimit: gasLimit // Always specify gas limit explicitly
+      });
+      console.log("🟠 ✅ Withdraw tx hash:", withdrawTx.hash);
+      console.log("🟠 ✅ Withdraw tx:", {
         to: withdrawTx.to,
         from: withdrawTx.from,
         data: withdrawTx.data,
         value: withdrawTx.value?.toString(),
         gasLimit: withdrawTx.gasLimit?.toString(),
+        gasPrice: withdrawTx.gasPrice?.toString(),
       });
       
       setTxHash(withdrawTx.hash);
@@ -796,18 +608,21 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
       console.log("🟠 Receipt status:", receipt.status);
       console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
+      console.log("🟠 Transaction confirmation details:", {
+        txHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        effectiveGasPrice: receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : 'N/A',
+        status: receipt.status === 1 ? 'Success' : 'Failed'
+      });
 
       setStatus("Updating balances...");
       setShowStatus(false);
       onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
 
       // Invalidate cache and refresh balances after transaction
-      console.log("🟠 Refreshing balances after withdrawal transaction...");
       invalidateBalanceCache();
-      const balanceRefreshStart = performance.now();
       await fetchBalances(true); // Force refresh after transaction
-      const balanceRefreshTime = performance.now() - balanceRefreshStart;
-      console.log(`🟠 Balance refresh completed in ${balanceRefreshTime.toFixed(2)}ms`);
       setAmount(""); // Clear input
       
       console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
@@ -838,42 +653,16 @@ const VaultApp = ({ onShowToast, mode }) => {
       }
       
       // Try to decode revert reason if available
-      let errorMessage = "Something went wrong with your withdrawal. Please try again.";
-      
       if (error.data && typeof error.data === 'string' && error.data.startsWith('0x')) {
         console.error("❌ Revert data:", error.data);
-        
-        // Check for specific error codes
-        if (error.data.includes('0x4323a555')) {
-          errorMessage = "Vault has insufficient liquidity to process this withdrawal. The assets may be deployed in strategies. Please try a smaller amount or try again later.";
-          console.error("❌ Custom error 0x4323a555 detected - likely insufficient vault liquidity");
-        } else if (error.data.length >= 10) {
-          // Try to decode as a custom error
-          const errorSelector = error.data.slice(0, 10);
-          console.error("❌ Error selector:", errorSelector);
-          
-          if (errorSelector === '0x4323a555') {
-            errorMessage = "Vault has insufficient liquidity to process this withdrawal. Please try a smaller amount or try again later.";
-          }
-        }
-      }
-      
-      // Check error reason if available
-      if (error.reason) {
-        console.error("❌ Error reason:", error.reason);
-        if (error.reason.includes('insufficient') || error.reason.includes('liquidity')) {
-          errorMessage = "Vault has insufficient liquidity. Please try a smaller amount or try again later.";
-        }
       }
       
       const msg = error.message || String(error);
       
       if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
         onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
-      } else if (msg.includes("insufficient") || msg.includes("liquidity")) {
-        onShowToast?.("error", "Vault has insufficient liquidity. Please try a smaller amount or try again later.");
       } else {
-        onShowToast?.("error", errorMessage);
+        onShowToast?.("error", "Something went wrong with your withdrawal. Please try again.");
       }
       
       console.error("❌ ========== WITHDRAWAL ERROR END ==========");
