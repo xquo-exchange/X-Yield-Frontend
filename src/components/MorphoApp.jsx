@@ -879,7 +879,7 @@ const VaultApp = ({ onShowToast, mode }) => {
     <>
       <div className="vault-container">
         <div className="pool-detail-card">
-          <h3 className="pool-title">X-Quo Yield</h3>
+          <h3 className="pool-title">X-QUO VAULT</h3>
           
           <div className="pool-stats-grid">
             <div className="pool-stat">
@@ -903,7 +903,7 @@ const VaultApp = ({ onShowToast, mode }) => {
               Avail. {mode === "deposit"
                 ? parseFloat(usdcBalance).toFixed(2)
                 : parseFloat(vaultBalance).toFixed(6)}{" "}
-              {mode === "deposit" ? "USDC" : "Vault"}
+              {mode === "deposit" ? "USDC" : "xPLS"}
             </span>
             <button onClick={setMaxAmount} className="vault-max-button">
               MAX
