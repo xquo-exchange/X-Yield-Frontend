@@ -28,8 +28,21 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', error);
 });
 
+// CRITICAL MOBILE FIX: Disable StrictMode in development to prevent double-mounting
+// StrictMode causes components to mount twice, which can trigger duplicate wallet connection attempts
+// This is especially problematic on mobile where each connection attempt triggers wallet app pop-ups
+const isDevelopment = import.meta.env.DEV;
+
 createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+  // Only use StrictMode in development if needed for debugging
+  // For now, disable it to prevent mobile pop-up spam from double-mounting
+  <App />
+  // Uncomment below if you need StrictMode for debugging (but be aware of double-mounting issues)
+  // isDevelopment ? (
+  //   <React.StrictMode>
+  //     <App />
+  //   </React.StrictMode>
+  // ) : (
+  //   <App />
+  // )
 )

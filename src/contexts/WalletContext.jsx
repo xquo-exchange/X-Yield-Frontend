@@ -25,6 +25,7 @@ export const WalletProvider = ({ children }) => {
   const chainChangeProcessingRef = useRef(false);
   const modalCloseObserverRef = useRef(null);
   const isActiveConnectionRef = useRef(false);
+  const enablingRef = useRef(false); // Track if enable() is in progress to prevent duplicate calls
 
   // Monitor and aggressively close WalletConnect modal during chain changes
   // MOBILE FIX: Added debouncing to prevent excessive modal closing attempts
@@ -183,6 +184,7 @@ export const WalletProvider = ({ children }) => {
     listenersSetupRef.current = false;
     lastAccountRef.current = null;
     chainChangeProcessingRef.current = false;
+    enablingRef.current = false; // Reset enabling flag
     
     // Clear timeouts if exist
     if (chainChangeTimeoutRef.current) {
@@ -250,13 +252,30 @@ export const WalletProvider = ({ children }) => {
         // This ensures wallet app only opens on user interaction, not automatically
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (!wcProvider.connected && isMobile) {
-          console.log('📱 Mobile: User clicked Connect Wallet - now calling enable()');
-          try {
-            await wcProvider.enable();
-            console.log('✅ Mobile: Provider enabled successfully after user interaction');
-          } catch (error) {
-            console.error('❌ Mobile: Enable failed:', error);
-            throw error;
+          // CRITICAL: Prevent multiple enable() calls that cause pop-up spam
+          if (enablingRef.current) {
+            console.log('⏳ Mobile: enable() already in progress, waiting...');
+            // Wait for existing enable() to complete
+            while (enablingRef.current) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            if (wcProvider.connected) {
+              console.log('✅ Mobile: Provider connected after waiting for previous enable()');
+            } else {
+              throw new Error('Enable failed after waiting for previous attempt');
+            }
+          } else {
+            enablingRef.current = true;
+            try {
+              console.log('📱 Mobile: User clicked Connect Wallet - now calling enable()');
+              await wcProvider.enable();
+              console.log('✅ Mobile: Provider enabled successfully after user interaction');
+            } catch (error) {
+              console.error('❌ Mobile: Enable failed:', error);
+              throw error;
+            } finally {
+              enablingRef.current = false;
+            }
           }
         }
       } else {
@@ -528,6 +547,7 @@ export const WalletProvider = ({ children }) => {
     } catch (error) {
       setConnecting(false);
       isActiveConnectionRef.current = false; // Connection failed, stop blocking modal
+      enablingRef.current = false; // Reset enabling flag on error to prevent stuck state
       console.error('❌ WalletConnect error:', error);
 
       if (error.message?.includes('User rejected') || error.message?.includes('User closed modal')) {
@@ -585,6 +605,7 @@ export const WalletProvider = ({ children }) => {
     listenersSetupRef.current = false;
     lastAccountRef.current = null;
     chainChangeProcessingRef.current = false;
+    enablingRef.current = false; // Reset enabling flag on disconnect
     
     // Clear timeouts if exist
     if (chainChangeTimeoutRef.current) {
