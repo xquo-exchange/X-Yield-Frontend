@@ -3,6 +3,10 @@ import { EthereumProvider } from "@walletconnect/ethereum-provider";
 // Cache the provider instance to prevent multiple initializations
 let cachedProvider = null;
 let isInitializing = false;
+// Track if we're in the initial connection phase (when deeplinks are allowed)
+let isInitialConnectionPhase = false;
+// Track if connection has been established (after enable() succeeds)
+let isConnectionEstablished = false;
 
 export async function initWalletConnect() {
   // Prevent concurrent initializations - return early if already initializing
@@ -13,6 +17,9 @@ export async function initWalletConnect() {
     }
     // After initialization completes, return the cached provider if it exists
     if (cachedProvider && cachedProvider.connected) {
+      // Ensure connection state flags are set correctly for cached provider
+      isInitialConnectionPhase = false;
+      isConnectionEstablished = true;
       return cachedProvider;
     }
   }
@@ -20,6 +27,9 @@ export async function initWalletConnect() {
   // Check if we have an existing connected provider - return it without showing QR
   if (cachedProvider && cachedProvider.connected) {
     console.log('🔗 WalletConnect: Using existing connected provider (no QR needed)');
+    // Ensure connection state flags are set correctly for cached provider
+    isInitialConnectionPhase = false;
+    isConnectionEstablished = true;
     return cachedProvider;
   }
 
@@ -86,18 +96,126 @@ export async function initWalletConnect() {
       }
     });
     
+    // Wrap the provider's request method to suppress deeplink errors after connection
+    // WalletConnect internally tries to use deeplinks for every request, but after
+    // connection is established, we should suppress these errors as they're just noise
+    const originalRequest = provider.request.bind(provider);
+    
+    // Store original console methods to restore later
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+    
+    provider.request = async function(args) {
+      // Only suppress deeplink errors after connection is established
+      const shouldSuppress = !isInitialConnectionPhase && isConnectionEstablished;
+      
+      // Temporarily override console methods to suppress deeplink-related errors
+      let consoleErrorOverride = null;
+      let consoleWarnOverride = null;
+      
+      if (shouldSuppress) {
+        consoleErrorOverride = function(...args) {
+          const message = args.join(' ');
+          // Suppress deeplink-related console errors
+          if (
+            message.includes('metamask://') ||
+            message.includes('scheme does not have a registered handler') ||
+            message.includes('Not allowed to launch') ||
+            message.includes('user gesture is required') ||
+            message.includes('Failed to launch') ||
+            message.includes('Document does not have focus, skipping deeplink')
+          ) {
+            // Suppress these errors silently
+            return;
+          }
+          // Allow other errors through
+          originalConsoleError.apply(console, args);
+        };
+        
+        consoleWarnOverride = function(...args) {
+          const message = args.join(' ');
+          // Suppress deeplink-related console warnings
+          if (
+            message.includes('metamask://') ||
+            message.includes('deeplink') ||
+            message.includes('Document does not have focus')
+          ) {
+            // Suppress these warnings silently
+            return;
+          }
+          // Allow other warnings through
+          originalConsoleWarn.apply(console, args);
+        };
+        
+        // Apply overrides
+        console.error = consoleErrorOverride;
+        console.warn = consoleWarnOverride;
+      }
+      
+      try {
+        const result = await originalRequest(args);
+        // Restore console after request completes
+        if (shouldSuppress) {
+          console.error = originalConsoleError;
+          console.warn = originalConsoleWarn;
+        }
+        return result;
+      } catch (error) {
+        // Restore console before handling error
+        if (shouldSuppress) {
+          console.error = originalConsoleError;
+          console.warn = originalConsoleWarn;
+        }
+        
+        // Check if it's a deeplink-related error that we should suppress
+        const errorMessage = error?.message || String(error);
+        const isDeeplinkError = 
+          errorMessage.includes('deeplink') ||
+          errorMessage.includes('metamask://') ||
+          errorMessage.includes('scheme does not have a registered handler') ||
+          errorMessage.includes('Not allowed to launch') ||
+          errorMessage.includes('user gesture is required');
+        
+        // If it's a deeplink error after connection is established,
+        // WalletConnect should handle the request through the existing session
+        // The deeplink failure is just noise - the request should still work
+        if (isDeeplinkError && shouldSuppress) {
+          // Suppress the error - WalletConnect will use the existing session
+          // This is expected behavior - deeplinks are only needed for initial connection
+          // After connection, requests go through the established session
+          throw error; // Still throw, but console errors are already suppressed
+        }
+        
+        // For other errors or during initial connection, throw normally
+        throw error;
+      }
+    };
+    
     // CRITICAL: Always call enable() after init to ensure connection
     // enable() will:
     // - Restore existing session if valid (won't show QR)
     // - Show QR modal if no valid session exists
     console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    
+    // Mark that we're in the initial connection phase (allow deeplinks)
+    isInitialConnectionPhase = true;
+    isConnectionEstablished = false;
+    
     try {
       await provider.enable();
       console.log('✅ WalletConnect: Provider enabled successfully');
+      
+      // Connection established - mark that we're past initial connection phase
+      isInitialConnectionPhase = false;
+      isConnectionEstablished = true;
     } catch (error) {
+      // Reset connection phase flags on error
+      isInitialConnectionPhase = false;
+      
       // If already connected, enable() might throw - check if it's actually connected
       if (provider.connected) {
         console.log('✅ WalletConnect: Provider already connected (session reused)');
+        isConnectionEstablished = true;
       } else {
         // If enable failed, check if it's because session was invalid
         // In this case, we need to trigger QR modal manually
@@ -160,6 +278,8 @@ export async function initWalletConnect() {
     return provider;
   } catch (error) {
     isInitializing = false;
+    isInitialConnectionPhase = false;
+    isConnectionEstablished = false;
     // Clear cached provider on error to ensure clean state
     cachedProvider = null;
     console.error('❌ WalletConnect: Initialization failed -', error.message || error);
@@ -170,6 +290,10 @@ export async function initWalletConnect() {
 // Function to clear the cached provider - THOROUGH CLEANUP
 export function clearWalletConnectCache() {
   console.log('🧹 Clearing WalletConnect cache...');
+  
+  // Reset connection state flags
+  isInitialConnectionPhase = false;
+  isConnectionEstablished = false;
   
   // Disconnect and cleanup existing provider if it exists
   if (cachedProvider) {
