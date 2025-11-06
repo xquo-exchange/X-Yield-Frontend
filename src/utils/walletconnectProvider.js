@@ -8,6 +8,214 @@ let isInitialConnectionPhase = false;
 // Track if connection has been established (after enable() succeeds)
 let isConnectionEstablished = false;
 
+// Store original browser APIs for deeplink interception
+let originalWindowOpen = null;
+let originalLocationHref = null;
+let locationHrefDescriptor = null;
+let originalLocationAssign = null;
+let originalLocationReplace = null;
+let deeplinkInterceptorsActive = false;
+let clickInterceptorHandler = null;
+
+// Mobile device detection
+function isMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  
+  const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+  const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+  const isMobileScreen = window.innerWidth <= 768 || (window.screen && window.screen.width <= 768);
+  
+  return isMobileUA || isMobileScreen;
+}
+
+// Check if a URL is a wallet deeplink
+function isWalletDeeplink(url) {
+  if (!url || typeof url !== 'string') return false;
+  
+  const walletSchemes = [
+    'metamask://',
+    'trust://',
+    'rainbow://',
+    'coinbase-wallet://',
+    'walletconnect://',
+    'wc://'
+  ];
+  
+  return walletSchemes.some(scheme => url.toLowerCase().startsWith(scheme));
+}
+
+// Setup deeplink interceptors to prevent app redirects after connection
+function setupDeeplinkInterceptors() {
+  if (typeof window === 'undefined' || deeplinkInterceptorsActive) return;
+  
+  // Only intercept on mobile devices
+  if (!isMobileDevice()) return;
+  
+  // Only intercept after connection is established
+  if (!isConnectionEstablished || isInitialConnectionPhase) return;
+  
+  console.log('🛡️ Setting up deeplink interceptors to prevent app redirects...');
+  
+  // Store original window.open
+  originalWindowOpen = window.open;
+  
+  // Override window.open to block wallet deeplinks
+  window.open = function(url, target, features) {
+    // Check if this is a wallet deeplink attempt
+    if (url && isWalletDeeplink(url)) {
+      console.log('🚫 Blocked deeplink attempt via window.open:', url);
+      return null; // Return null to indicate the window was blocked
+    }
+    
+    // Allow non-wallet URLs through
+    return originalWindowOpen.call(window, url, target, features);
+  };
+  
+  // Intercept anchor tag clicks that might trigger deeplinks
+  if (typeof document !== 'undefined') {
+    clickInterceptorHandler = function(e) {
+      const target = e.target;
+      const anchor = target.closest('a');
+      
+      if (anchor && anchor.href) {
+        if (isWalletDeeplink(anchor.href)) {
+          console.log('🚫 Blocked deeplink attempt via anchor click:', anchor.href);
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return false;
+        }
+      }
+    };
+    
+    document.addEventListener('click', clickInterceptorHandler, true); // Use capture phase to catch early
+  }
+  
+  // Intercept location.href changes and location methods
+  try {
+    locationHrefDescriptor = Object.getOwnPropertyDescriptor(window, 'location') || 
+                            Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window), 'location');
+    
+    if (locationHrefDescriptor && locationHrefDescriptor.configurable) {
+      const location = window.location;
+      originalLocationAssign = location.assign;
+      originalLocationReplace = location.replace;
+      
+      // Override location.assign to block deeplinks
+      if (originalLocationAssign) {
+        location.assign = function(url) {
+          if (isWalletDeeplink(url)) {
+            console.log('🚫 Blocked deeplink attempt via location.assign:', url);
+            return; // Block the redirect
+          }
+          return originalLocationAssign.call(location, url);
+        };
+      }
+      
+      // Override location.replace to block deeplinks
+      if (originalLocationReplace) {
+        location.replace = function(url) {
+          if (isWalletDeeplink(url)) {
+            console.log('🚫 Blocked deeplink attempt via location.replace:', url);
+            return; // Block the redirect
+          }
+          return originalLocationReplace.call(location, url);
+        };
+      }
+      
+      Object.defineProperty(window, 'location', {
+        get: function() {
+          return location;
+        },
+        set: function(url) {
+          // Check if this is a wallet deeplink attempt
+          if (isWalletDeeplink(url)) {
+            console.log('🚫 Blocked deeplink attempt via location.href:', url);
+            return; // Block the redirect
+          }
+          
+          // Allow non-wallet URLs through
+          if (locationHrefDescriptor && locationHrefDescriptor.set) {
+            locationHrefDescriptor.set.call(window, url);
+          } else {
+            location.href = url;
+          }
+        },
+        configurable: true
+      });
+    }
+  } catch (e) {
+    // Some browsers don't allow location to be redefined, that's okay
+    console.log('ℹ️ Could not intercept location.href (browser restriction)');
+  }
+  
+  // Also intercept direct location.href assignments via a proxy
+  try {
+    const locationProxy = new Proxy(window.location, {
+      set: function(target, property, value) {
+        if (property === 'href' && isWalletDeeplink(value)) {
+          console.log('🚫 Blocked deeplink attempt via location proxy:', value);
+          return true; // Block the assignment
+        }
+        target[property] = value;
+        return true;
+      }
+    });
+    
+    // Note: We can't fully replace window.location, but this helps catch some cases
+  } catch (e) {
+    // Proxy might not work in all browsers, that's okay
+  }
+  
+  deeplinkInterceptorsActive = true;
+}
+
+// Remove deeplink interceptors and restore original APIs
+function removeDeeplinkInterceptors() {
+  if (!deeplinkInterceptorsActive) return;
+  
+  console.log('🧹 Removing deeplink interceptors...');
+  
+  // Remove click event listener
+  if (clickInterceptorHandler && typeof document !== 'undefined') {
+    document.removeEventListener('click', clickInterceptorHandler, true);
+    clickInterceptorHandler = null;
+  }
+  
+  // Restore original window.open
+  if (originalWindowOpen) {
+    window.open = originalWindowOpen;
+    originalWindowOpen = null;
+  }
+  
+  // Restore original location methods if we modified them
+  try {
+    if (originalLocationAssign && window.location) {
+      window.location.assign = originalLocationAssign;
+      originalLocationAssign = null;
+    }
+    if (originalLocationReplace && window.location) {
+      window.location.replace = originalLocationReplace;
+      originalLocationReplace = null;
+    }
+  } catch (e) {
+    // Some browsers don't allow this, that's okay
+  }
+  
+  // Restore original location.href if we modified it
+  // Note: We can't fully restore location in all browsers, but we try
+  try {
+    if (locationHrefDescriptor) {
+      Object.defineProperty(window, 'location', locationHrefDescriptor);
+      locationHrefDescriptor = null;
+    }
+  } catch (e) {
+    // Some browsers don't allow this, that's okay
+  }
+  
+  deeplinkInterceptorsActive = false;
+}
+
 export async function initWalletConnect() {
   // Prevent concurrent initializations - return early if already initializing
   if (isInitializing) {
@@ -30,6 +238,12 @@ export async function initWalletConnect() {
     // Ensure connection state flags are set correctly for cached provider
     isInitialConnectionPhase = false;
     isConnectionEstablished = true;
+    
+    // Setup deeplink interceptors on mobile if not already active
+    if (isMobileDevice() && !deeplinkInterceptorsActive) {
+      setupDeeplinkInterceptors();
+    }
+    
     return cachedProvider;
   }
 
@@ -108,6 +322,11 @@ export async function initWalletConnect() {
     provider.request = async function(args) {
       // Only suppress deeplink errors after connection is established
       const shouldSuppress = !isInitialConnectionPhase && isConnectionEstablished;
+      
+      // On mobile, ensure deeplink interceptors are active after connection
+      if (shouldSuppress && isMobileDevice() && !deeplinkInterceptorsActive) {
+        setupDeeplinkInterceptors();
+      }
       
       // Temporarily override console methods to suppress deeplink-related errors
       let consoleErrorOverride = null;
@@ -208,6 +427,11 @@ export async function initWalletConnect() {
       // Connection established - mark that we're past initial connection phase
       isInitialConnectionPhase = false;
       isConnectionEstablished = true;
+      
+      // Setup deeplink interceptors on mobile to prevent app redirects
+      if (isMobileDevice()) {
+        setupDeeplinkInterceptors();
+      }
     } catch (error) {
       // Reset connection phase flags on error
       isInitialConnectionPhase = false;
@@ -215,7 +439,13 @@ export async function initWalletConnect() {
       // If already connected, enable() might throw - check if it's actually connected
       if (provider.connected) {
         console.log('✅ WalletConnect: Provider already connected (session reused)');
+        isInitialConnectionPhase = false;
         isConnectionEstablished = true;
+        
+        // Setup deeplink interceptors on mobile to prevent app redirects
+        if (isMobileDevice()) {
+          setupDeeplinkInterceptors();
+        }
       } else {
         // If enable failed, check if it's because session was invalid
         // In this case, we need to trigger QR modal manually
@@ -290,6 +520,9 @@ export async function initWalletConnect() {
 // Function to clear the cached provider - THOROUGH CLEANUP
 export function clearWalletConnectCache() {
   console.log('🧹 Clearing WalletConnect cache...');
+  
+  // Remove deeplink interceptors before clearing
+  removeDeeplinkInterceptors();
   
   // Reset connection state flags
   isInitialConnectionPhase = false;
