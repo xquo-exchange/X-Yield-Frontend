@@ -18,7 +18,7 @@ let deeplinkInterceptorsActive = false;
 let clickInterceptorHandler = null;
 
 // Mobile device detection
-function isMobileDevice() {
+export function isMobileDevice() {
   if (typeof window === 'undefined') return false;
   
   const userAgent = navigator.userAgent || navigator.vendor || window.opera;
@@ -572,5 +572,45 @@ export function clearWalletConnectCache() {
   }
   
   console.log('✅ WalletConnect cache cleared');
+}
+
+// Function to temporarily allow deeplinks (for user-initiated actions like transaction confirmation)
+export function temporarilyAllowDeeplinks(callback) {
+  return new Promise(async (resolve, reject) => {
+    // Only allow on mobile devices
+    if (!isMobileDevice()) {
+      // On desktop, just execute the callback normally
+      try {
+        const result = await callback();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+      return;
+    }
+    
+    // Temporarily disable interceptors
+    const wasActive = deeplinkInterceptorsActive;
+    if (wasActive) {
+      console.log('🔓 Temporarily allowing deeplinks for user action...');
+      removeDeeplinkInterceptors();
+    }
+    
+    try {
+      // Execute the callback (which will trigger deeplink)
+      const result = await callback();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    } finally {
+      // Re-enable interceptors after a delay to allow deeplink to complete
+      setTimeout(() => {
+        if (wasActive && isConnectionEstablished && !isInitialConnectionPhase && isMobileDevice()) {
+          console.log('🔒 Re-enabling deeplink interceptors...');
+          setupDeeplinkInterceptors();
+        }
+      }, 3000); // 3 second delay to allow deeplink to complete and user to interact with wallet
+    }
+  });
 }
 
