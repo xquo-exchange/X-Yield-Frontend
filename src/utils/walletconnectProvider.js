@@ -296,7 +296,7 @@ export async function initWalletConnect() {
         ],
       },
       metadata: {
-        name: "X-QUO Yield",
+        name: "X-QUO VAULT",
         description: "X-QUO Vault on Base",
         url: typeof window !== 'undefined' ? window.location.origin : "https://xquo-chi.vercel.app",
         icons: [
