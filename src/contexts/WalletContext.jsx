@@ -167,7 +167,10 @@ export const WalletProvider = ({ children }) => {
       // Check for existing provider first - don't clear if we can reuse it
       let wcProvider = wcProviderRef.current;
       
-      if (!wcProvider || !wcProvider.connected) {
+      if (wcProvider && wcProvider.connected) {
+        console.log('✅ Reusing existing connected provider (no init needed)');
+        // Skip all the clearing logic and just use the existing provider
+      } else if (!wcProvider || !wcProvider.connected) {
         // Only clear if we need a fresh connection
         console.log('🧹 Clearing wallet state for fresh connection...');
         
