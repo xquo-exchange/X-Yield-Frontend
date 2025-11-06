@@ -9,6 +9,7 @@ const Navbar = ({ onShowToast }) => {
     isConnected,
     connecting,
     chainId,
+    switchingNetwork,
     connectWallet,
     disconnectWallet,
     switchToBase,
@@ -79,15 +80,21 @@ const Navbar = ({ onShowToast }) => {
           </button>
         ) : (
           <div className="wallet-connected">
-            {/* Network indicator - always visible */}
-            <div 
-              className={`network-indicator ${isBase ? 'mainnet' : 'warning'}`}
-              onClick={!isBase ? handleSwitchNetwork : undefined}
-              style={{ cursor: !isBase ? 'pointer' : 'default' }}
-              title={!isBase ? "Click to switch to Base" : "Connected to Base"}
-            >
-              {isBase ? '🟢' : '⚠️'} <span className="network-text">{getNetworkName(chainId)}</span>
-            </div>
+            {/* Network indicator - hide warning while switching to Base */}
+            {switchingNetwork ? (
+              <div className={`network-indicator neutral`} title="Switching to Base...">
+                ⏳ <span className="network-text">Switching to Base...</span>
+              </div>
+            ) : (
+              <div 
+                className={`network-indicator ${isBase ? 'mainnet' : 'warning'}`}
+                onClick={!isBase ? handleSwitchNetwork : undefined}
+                style={{ cursor: !isBase ? 'pointer' : 'default' }}
+                title={!isBase ? "Click to switch to Base" : "Connected to Base"}
+              >
+                {isBase ? '🟢' : '⚠️'} <span className="network-text">{getNetworkName(chainId)}</span>
+              </div>
+            )}
 
             {/* Desktop wallet button */}
             <button
