@@ -17,40 +17,60 @@ export async function initWalletConnect() {
     }
   }
 
-  // Check if we have an existing provider (connected or not) - return it
-  if (cachedProvider) {
-    console.log('🔗 WalletConnect: Using existing provider instance');
+  // Check if we have an existing connected provider - return it without showing QR
+  if (cachedProvider && cachedProvider.connected) {
+    console.log('🔗 WalletConnect: Using existing connected provider (no QR needed)');
     return cachedProvider;
+  }
+
+  // IMPORTANT: Clear stale cached provider before creating new one
+  // This prevents issues when reconnecting after disconnect
+  if (cachedProvider) {
+    console.log('🧹 Clearing stale cached provider before new connection...');
+    try {
+      if (cachedProvider.connected) {
+        await cachedProvider.disconnect();
+      }
+    } catch (e) {
+      // Ignore errors when clearing stale provider
+      console.log('⚠️ Error disconnecting stale provider (continuing anyway):', e);
+    }
+    cachedProvider = null;
   }
 
   isInitializing = true;
   console.log('🔗 WalletConnect: Initializing provider for Base...');
   
-  // CRITICAL MOBILE FIX: Detect mobile and disable QR modal to prevent auto-triggers
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  
   try {
-    // Initialize provider - this will check for existing sessions in localStorage
-    // CRITICAL: On mobile, showQrModal MUST be false to prevent auto-triggers
+    // Check if there's an existing valid WalletConnect session in localStorage
+    // If there is, we don't need to show QR modal immediately
+    // WalletConnect will restore the session if it's still valid
+    const hasExistingSession = typeof window !== 'undefined' && 
+      Object.keys(localStorage).some(key => 
+        (key.startsWith('wc@2:session:') || key.startsWith('WCM_')) &&
+        localStorage.getItem(key) // Make sure it's not empty
+      );
+    
+    console.log(`🔍 WalletConnect: Existing session detected: ${hasExistingSession ? 'Yes' : 'No'}`);
+    
+    // Initialize provider - only show QR if no existing session
+    // If session exists, WalletConnect will try to restore it first
     const provider = await EthereumProvider.init({
       projectId: "88686807816516c396fdf733fd957d95",
       chains: [8453], // Base mainnet
-      showQrModal: !isMobile, // FALSE on mobile to prevent auto-triggers, true on desktop
-      // Only include qrModalOptions on desktop to avoid any mobile side effects
-      ...(isMobile ? {} : {
-        qrModalOptions: {
-          themeMode: "dark",
-          themeVariables: {
-            "--wcm-z-index": "9999"
-          },
-          enableExplorer: true,
-          explorerRecommendedWalletIds: [
-            "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
-            "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0", // Trust Wallet
-            "1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369", // Rainbow
-          ],
+      showQrModal: !hasExistingSession, // Only show QR if no existing session
+      qrModalOptions: {
+        themeMode: "dark",
+        themeVariables: {
+          "--wcm-z-index": "9999"
         },
-      }),
+        enableExplorer: true,
+        explorerRecommendedWalletIds: [
+          "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
+          "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0", // Trust Wallet
+          "1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369", // Rainbow
+        ],
+      },
       metadata: {
         name: "X-QUO Yield",
         description: "X-QUO Vault on Base",
@@ -62,72 +82,86 @@ export async function initWalletConnect() {
         ]
       },
       rpcMap: {
-        8453: "https://mainnet.base.org" // Base mainnet RPC (official, fastest)
+        8453: "https://base.llamarpc.com" // Base mainnet RPC
       }
     });
     
-    // CRITICAL FIX: Don't call enable() automatically - let the caller decide
-    // According to WalletConnect v2 docs:
-    // - If provider.connected is true, session exists and is valid
-    // - If provider.connected is false, enable() must be called to establish connection
-    // - BUT: On mobile, enable() triggers wallet app even with showQrModal: false
-    // - SOLUTION: Only call enable() if explicitly requested (not on auto-init)
-    
-    // Check if provider has a valid session from localStorage
-    if (provider.connected) {
-      console.log('✅ WalletConnect: Provider already connected (session exists in localStorage)');
-      // Session exists - verify it's still valid by checking accounts
-      try {
-        const accounts = await provider.request({ method: 'eth_accounts' });
-        if (accounts && accounts.length > 0) {
-          console.log('✅ WalletConnect: Valid session found, accounts:', accounts);
-          cachedProvider = provider;
-          isInitializing = false;
-          return provider;
-        } else {
-          // Session exists but no accounts - might be stale
-          console.log('⚠️ WalletConnect: Session exists but no accounts - might be stale');
-          // Don't call enable() here - let caller handle reconnection
-          cachedProvider = provider;
-          isInitializing = false;
-          return provider;
-        }
-      } catch (error) {
-        console.warn('⚠️ WalletConnect: Error checking session validity:', error);
-        // Session might be invalid - provider will handle this
-        cachedProvider = provider;
-        isInitializing = false;
-        return provider;
-      }
-    } else {
-      // No session exists - provider.connected is false
-      // CRITICAL: On mobile, DON'T call enable() automatically - it triggers wallet app
-      // enable() should only be called when user explicitly clicks "Connect Wallet"
-      if (isMobile) {
-        console.log('📱 Mobile: Provider not connected, but skipping enable() to prevent auto-trigger');
-        console.log('📱 Mobile: enable() will be called when user clicks Connect Wallet button');
-        cachedProvider = provider;
-        isInitializing = false;
-        return provider; // Return provider without calling enable()
+    // CRITICAL: Always call enable() after init to ensure connection
+    // enable() will:
+    // - Restore existing session if valid (won't show QR)
+    // - Show QR modal if no valid session exists
+    console.log('🔗 WalletConnect: Provider created, enabling connection...');
+    try {
+      await provider.enable();
+      console.log('✅ WalletConnect: Provider enabled successfully');
+    } catch (error) {
+      // If already connected, enable() might throw - check if it's actually connected
+      if (provider.connected) {
+        console.log('✅ WalletConnect: Provider already connected (session reused)');
       } else {
-        // Desktop: It's OK to call enable() - it will show QR modal
-        console.log('🔗 WalletConnect: Provider not connected, enabling connection...');
-        try {
-          await provider.enable();
-          console.log('✅ WalletConnect: Provider enabled successfully');
-          cachedProvider = provider;
+        // If enable failed, check if it's because session was invalid
+        // In this case, we need to trigger QR modal manually
+        console.log('⚠️ WalletConnect: Enable failed, checking if we need to show QR...');
+        
+        // If we thought there was a session but enable failed, the session was likely invalid
+        // Clear it and try again with QR modal enabled
+        if (hasExistingSession) {
+          console.log('🧹 Clearing invalid session and retrying with QR modal...');
+          // Clear the invalid session
+          try {
+            Object.keys(localStorage).forEach(key => {
+              if (key.startsWith('wc@2:session:') || key.startsWith('WCM_')) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch (e) {
+            // Ignore errors
+          }
+          
+          // Re-initialize with QR modal enabled
+          // Actually, we can't re-init easily here, so let's just throw and let the caller retry
+          // Or better: set a flag to show QR on next attempt
+          console.error('❌ WalletConnect: Session was invalid. Please retry connection.');
           isInitializing = false;
-          return provider;
-        } catch (error) {
+          cachedProvider = null;
+          throw new Error('Invalid session detected. Please reconnect.');
+        } else {
           // Re-throw if it's a real error and provider is not connected
           console.error('❌ WalletConnect: Enable failed and provider not connected:', error);
           isInitializing = false;
+          cachedProvider = null;
           throw error;
         }
       }
     }
+    
+    // Close the modal after successful connection (if it's still open)
+    // WalletConnect modal should auto-close, but we ensure it's closed
+    try {
+      // Wait a bit for the modal to auto-close
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Try to close the modal programmatically if it exists
+      const modalElement = document.querySelector('w3m-modal');
+      if (modalElement && modalElement.shadowRoot) {
+        const closeButton = modalElement.shadowRoot.querySelector('button[aria-label="Close"]');
+        if (closeButton) {
+          closeButton.click();
+          console.log('✅ WalletConnect: Modal closed programmatically');
+        }
+      }
+    } catch (modalCloseError) {
+      // Ignore errors - modal might already be closed
+      console.log('ℹ️ WalletConnect: Modal close attempt completed (may already be closed)');
+    }
+    
+    cachedProvider = provider;
+    isInitializing = false;
+    return provider;
   } catch (error) {
     isInitializing = false;
+    // Clear cached provider on error to ensure clean state
+    cachedProvider = null;
     console.error('❌ WalletConnect: Initialization failed -', error.message || error);
     throw error;
   }
@@ -181,67 +215,5 @@ export function clearWalletConnectCache() {
   }
   
   console.log('✅ WalletConnect cache cleared');
-}
-
-// Debounce timer for modal closing to prevent spam
-let modalCloseTimeout = null;
-let isModalClosing = false;
-
-// Forcefully close WalletConnect modal - call this during chain changes
-// Added debouncing to prevent mobile pop-up spam
-export function closeWalletConnectModal() {
-  // If already closing or scheduled to close, skip
-  if (isModalClosing || modalCloseTimeout) {
-    return;
-  }
-  
-  // Debounce modal closing to prevent rapid-fire calls
-  modalCloseTimeout = setTimeout(() => {
-    isModalClosing = true;
-    modalCloseTimeout = null;
-    
-    try {
-    // Close WalletConnect v2 modal using multiple selectors
-    const modalSelectors = [
-      'w3m-modal',
-      '[data-wcm-modal]',
-      '.walletconnect-modal',
-      'walletconnect-modal',
-      '#walletconnect-wrapper'
-    ];
-    
-    for (const selector of modalSelectors) {
-      const modal = document.querySelector(selector);
-      if (modal) {
-        // Try to close via shadow DOM
-        if (modal.shadowRoot) {
-          const closeButton = modal.shadowRoot.querySelector('button[aria-label="Close"], button[aria-label="close"], .w3m-modal-close, button.close');
-          if (closeButton) {
-            closeButton.click();
-            console.log('✅ WalletConnect modal closed via shadow DOM');
-            return;
-          }
-        }
-        
-        // Try to remove from DOM
-        modal.remove();
-        console.log('✅ WalletConnect modal removed from DOM');
-      }
-    }
-    
-    // Try to close via WalletConnect provider API if available
-    if (cachedProvider && typeof cachedProvider.closeModal === 'function') {
-      cachedProvider.closeModal();
-      console.log('✅ WalletConnect modal closed via provider API');
-    }
-    } catch (error) {
-      // Silently fail - modal might already be closed
-    } finally {
-      // Reset flag after a short delay to allow modal to close
-      setTimeout(() => {
-        isModalClosing = false;
-      }, 200);
-    }
-  }, 100); // 100ms debounce to prevent spam
 }
 
