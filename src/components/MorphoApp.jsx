@@ -41,7 +41,8 @@ const VaultApp = ({ onShowToast, mode }) => {
     usdcBalance,
     vaultBalance,
     fetchBalances,
-    invalidateBalanceCache
+    invalidateBalanceCache,
+    isBalancesLoading
   } = useWallet();
   
   const [showWarning, setShowWarning] = useState(false);
@@ -913,7 +914,9 @@ const VaultApp = ({ onShowToast, mode }) => {
           <div className="pool-stats-grid">
             <div className="pool-stat">
               <span className="pool-stat-label">Your Position</span>
-              <span className="pool-stat-value">${parseFloat(vaultBalance || 0).toFixed(2)}</span>
+              <span className="pool-stat-value">
+                {isBalancesLoading ? "Loading..." : `$${parseFloat(vaultBalance || 0).toFixed(2)}`}
+              </span>
             </div>
             <div className="pool-stat">
               <span className="pool-stat-label">APY</span>
@@ -929,10 +932,13 @@ const VaultApp = ({ onShowToast, mode }) => {
         <div className="vault-token-box">
           <div className="vault-token-header">
             <span className="vault-balance-label">
-              Avail. {mode === "deposit"
-                ? parseFloat(usdcBalance).toFixed(2)
-                : parseFloat(vaultBalance).toFixed(6)}{" "}
-              {mode === "deposit" ? "USDC" : "xPLS"}
+              {isBalancesLoading
+                ? "Balance loading..."
+                : `Avail. ${
+                    mode === "deposit"
+                      ? parseFloat(usdcBalance || 0).toFixed(2)
+                      : parseFloat(vaultBalance || 0).toFixed(6)
+                  } ${mode === "deposit" ? "USDC" : "xPLS"}`}
             </span>
             <button onClick={setMaxAmount} className="vault-max-button">
               MAX
