@@ -38,6 +38,7 @@ export const WalletProvider = ({ children }) => {
   const [walletType] = useState('walletconnect');
   const [usdcBalance, setUsdcBalance] = useState("0");
   const [vaultBalance, setVaultBalance] = useState("0");
+  const [isBalancesLoading, setIsBalancesLoading] = useState(false);
   const wcProviderRef = useRef(null);
   const lastChainIdRef = useRef(null);
   const chainChangeTimeoutRef = useRef(null);
@@ -560,6 +561,7 @@ export const WalletProvider = ({ children }) => {
     setConnecting(false);
     setUsdcBalance("0");
     setVaultBalance("0");
+    setIsBalancesLoading(false);
     
     // Clear all refs
     lastChainIdRef.current = null;
@@ -733,6 +735,7 @@ export const WalletProvider = ({ children }) => {
   // Fetch balances function (reusable) - optimized with caching
   const fetchBalances = useCallback(async (forceRefresh = false) => {
     if (!walletAddress || !provider) {
+      setIsBalancesLoading(false);
       setUsdcBalance("0");
       setVaultBalance("0");
       balanceCacheRef.current = null;
@@ -740,11 +743,14 @@ export const WalletProvider = ({ children }) => {
     }
 
     if (chainId !== 8453) {
+      setIsBalancesLoading(false);
       setUsdcBalance("0");
       setVaultBalance("0");
       balanceCacheRef.current = null;
       return;
     }
+
+    setIsBalancesLoading(true);
 
     // Check cache first (unless force refresh)
     const cache = balanceCacheRef.current;
@@ -754,6 +760,7 @@ export const WalletProvider = ({ children }) => {
       // Use cached balances
       setUsdcBalance(cache.usdcBalance);
       setVaultBalance(cache.vaultBalance);
+      setIsBalancesLoading(false);
       return;
     }
 
@@ -781,6 +788,7 @@ export const WalletProvider = ({ children }) => {
       
       // Verify network matches
       if (network.chainId !== 8453) {
+        setIsBalancesLoading(false);
         setUsdcBalance("0");
         setVaultBalance("0");
         balanceCacheRef.current = null;
@@ -800,6 +808,7 @@ export const WalletProvider = ({ children }) => {
       // Update state and cache
       setUsdcBalance(formattedUsdc);
       setVaultBalance(formattedVaultBalance);
+      setIsBalancesLoading(false);
       
       // Store in cache
       balanceCacheRef.current = {
@@ -812,12 +821,14 @@ export const WalletProvider = ({ children }) => {
     } catch (error) {
       // Handle network change errors gracefully
       if (error.code === 'NETWORK_ERROR' || error.message?.includes('underlying network changed')) {
+        setIsBalancesLoading(false);
         return; // Don't reset balances - wait for provider to update
       }
       
       setUsdcBalance("0");
       setVaultBalance("0");
       balanceCacheRef.current = null;
+      setIsBalancesLoading(false);
     }
   }, [walletAddress, provider, chainId]);
 
@@ -926,6 +937,7 @@ export const WalletProvider = ({ children }) => {
     walletType,
     usdcBalance,
     vaultBalance,
+    isBalancesLoading,
     connectWallet,
     disconnectWallet,
     switchToBase,
