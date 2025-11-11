@@ -1,8 +1,14 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
+import { WagmiConfig } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import './index.css'
+import { appKit, wagmiAdapter } from './config/appKit'
+
+// Ensure AppKit is initialized (side effect import)
+void appKit
 
 // Polyfill Buffer for browser
 window.Buffer = Buffer
@@ -31,18 +37,12 @@ window.addEventListener('unhandledrejection', (event) => {
 // CRITICAL MOBILE FIX: Disable StrictMode in development to prevent double-mounting
 // StrictMode causes components to mount twice, which can trigger duplicate wallet connection attempts
 // This is especially problematic on mobile where each connection attempt triggers wallet app pop-ups
-const isDevelopment = import.meta.env.DEV;
+const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')).render(
-  // Only use StrictMode in development if needed for debugging
-  // For now, disable it to prevent mobile pop-up spam from double-mounting
-  <App />
-  // Uncomment below if you need StrictMode for debugging (but be aware of double-mounting issues)
-  // isDevelopment ? (
-  //   <React.StrictMode>
-  //     <App />
-  //   </React.StrictMode>
-  // ) : (
-  //   <App />
-  // )
+  <QueryClientProvider client={queryClient}>
+    <WagmiConfig config={wagmiAdapter.wagmiConfig}>
+      <App />
+    </WagmiConfig>
+  </QueryClientProvider>
 )
