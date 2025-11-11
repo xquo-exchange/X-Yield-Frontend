@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
-import { temporarilyAllowDeeplinks, isMobileDevice } from "../utils/walletconnectProvider";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 
@@ -51,8 +50,6 @@ const VaultApp = ({ onShowToast, mode }) => {
   const [showStatus, setShowStatus] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
-  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
-  const pendingTransactionRef = useRef(null);
   
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
@@ -267,72 +264,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         console.warn("🔵 Could not preview deposit (function may not exist):", previewError.message);
       }
 
-      // On mobile, pause here and wait for user to click "Confirm in App" button
-      if (isMobileDevice()) {
-        console.log("🔵 Mobile device detected - waiting for user confirmation...");
-        setStatus("Confirm in App");
-        setWaitingForConfirmation(true);
-        
-        // Store the transaction function to execute when button is clicked
-        pendingTransactionRef.current = async () => {
-          try {
-            const depositTx = await temporarilyAllowDeeplinks(async () => {
-              console.log("🔵 Sending deposit transaction...");
-              const tx = await vaultContract.deposit(requiredAmount, account);
-              console.log("🔵 Deposit tx hash:", tx.hash);
-              console.log("🔵 Deposit tx:", {
-                to: tx.to,
-                from: tx.from,
-                data: tx.data,
-                value: tx.value?.toString(),
-                gasLimit: tx.gasLimit?.toString(),
-              });
-              
-              setTxHash(tx.hash);
-              setStatus("Waiting for confirmation...");
-              setWaitingForConfirmation(false);
-              
-              return tx;
-            });
-            
-            // Wait for receipt
-            const receipt = await depositTx.wait();
-            console.log("✅ Deposit confirmed:", receipt.transactionHash);
-            console.log("🔵 Receipt status:", receipt.status);
-            console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
-
-            // Refresh balances
-            setStatus("Updating balances...");
-            setShowStatus(false);
-            onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
-
-            //GTM Deposit
-            sendGTMEvent('Deposit', {
-              apy_percent: BASE_APY,
-              amount_usd: parseFloat(amount),
-              network: 'Base'
-            });
-
-            // Invalidate cache and refresh balances after transaction
-            invalidateBalanceCache();
-            await fetchBalances(true); // Force refresh after transaction
-            setAmount(""); // Clear input
-            
-            console.log("🔵 ========== DEPOSIT SUCCESS ==========");
-            
-            setIsLoading(false);
-            setShowStatus(false);
-          } catch (error) {
-            // Handle errors (will be caught by outer try-catch)
-            throw error;
-          }
-        };
-        
-        // Return early - transaction will be executed when button is clicked
-        return;
-      }
-      
-      // Desktop flow - proceed normally
       console.log("🔵 Sending deposit transaction...");
       const depositTx = await vaultContract.deposit(requiredAmount, account);
       console.log("🔵 Deposit tx hash:", depositTx.hash);
@@ -372,10 +303,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🔵 ========== DEPOSIT SUCCESS ==========");
 
     } catch (error) {
-      // Reset waiting state on error
-      setWaitingForConfirmation(false);
-      pendingTransactionRef.current = null;
-      
       console.error("❌ ========== DEPOSIT ERROR ==========");
       console.error("❌ Error object:", error);
       console.error("❌ Error message:", error.message);
@@ -660,92 +587,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         return;
       }
 
-      // On mobile, pause here and wait for user to click "Confirm in App" button
-      if (isMobileDevice()) {
-        console.log("🟠 Mobile device detected - waiting for user confirmation...");
-        setStatus("Confirm in App");
-        setWaitingForConfirmation(true);
-        
-        // Store the transaction function to execute when button is clicked
-        pendingTransactionRef.current = async () => {
-          try {
-            const withdrawTx = await temporarilyAllowDeeplinks(async () => {
-              // Use withdraw() function - takes assets (USDC amount) and returns shares
-              // withdraw(uint256 assets, address receiver, address owner)
-              console.log("🟠 Sending withdrawal transaction...");
-              console.log("🟠 Final transaction summary:", {
-                amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
-                receiver: account,
-                owner: account,
-                gasLimit: gasLimit.toString(),
-                vaultAddress: VAULT_ADDRESS
-              });
-              const tx = await vaultContract.withdraw(usdcAmount, account, account, {
-                gasLimit: gasLimit // Always specify gas limit explicitly
-              });
-              console.log("🟠 ✅ Withdraw tx hash:", tx.hash);
-              console.log("🟠 ✅ Withdraw tx:", {
-                to: tx.to,
-                from: tx.from,
-                data: tx.data,
-                value: tx.value?.toString(),
-                gasLimit: tx.gasLimit?.toString(),
-                gasPrice: tx.gasPrice?.toString(),
-              });
-              
-              setTxHash(tx.hash);
-              setStatus("Waiting for confirmation...");
-              setWaitingForConfirmation(false);
-              
-              return tx;
-            });
-            
-            // Wait for receipt
-            const receipt = await withdrawTx.wait();
-            console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
-            console.log("🟠 Receipt status:", receipt.status);
-            console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
-            console.log("🟠 Transaction confirmation details:", {
-              txHash: receipt.transactionHash,
-              blockNumber: receipt.blockNumber,
-              gasUsed: receipt.gasUsed.toString(),
-              effectiveGasPrice: receipt.effectiveGasPrice ? receipt.effectiveGasPrice.toString() : 'N/A',
-              status: receipt.status === 1 ? 'Success' : 'Failed'
-            });
-
-            setStatus("Updating balances...");
-            setShowStatus(false);
-            onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
-
-            //GTM Withdrawal
-            sendGTMEvent('Withdrawal', {
-              apy_percent: BASE_APY,
-              amount_usd: parseFloat(amount),
-              network: 'Base'
-            });
-
-            // Invalidate cache and refresh balances after transaction
-            invalidateBalanceCache();
-            await fetchBalances(true); // Force refresh after transaction
-            setAmount(""); // Clear input
-            
-            console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
-            
-            setIsLoading(false);
-            setShowStatus(false);
-          } catch (error) {
-            // Handle errors (will be caught by outer try-catch)
-            throw error;
-          }
-        };
-        
-        // Return early - transaction will be executed when button is clicked
-        return;
-      }
-      
-      // Desktop flow - proceed normally
-      // Use withdraw() function - takes assets (USDC amount) and returns shares
-      // withdraw(uint256 assets, address receiver, address owner)
       console.log("🟠 Sending withdrawal transaction...");
       console.log("🟠 Final transaction summary:", {
         amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
@@ -801,10 +642,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
 
     } catch (error) {
-      // Reset waiting state on error
-      setWaitingForConfirmation(false);
-      pendingTransactionRef.current = null;
-      
       console.error("❌ ========== WITHDRAWAL ERROR ==========");
       console.error("❌ Error object:", error);
       console.error("❌ Error message:", error.message);
@@ -867,38 +704,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       executeDeposit();
     } else {
       executeWithdrawal();
-    }
-  };
-
-  // Handle "Confirm in App" button click
-  const handleConfirmInApp = async () => {
-    if (!pendingTransactionRef.current) {
-      console.error("❌ No pending transaction to execute");
-      return;
-    }
-
-    try {
-      setWaitingForConfirmation(false);
-      setIsLoading(true);
-      await pendingTransactionRef.current();
-      pendingTransactionRef.current = null;
-    } catch (error) {
-      console.error("❌ Transaction error:", error);
-      setWaitingForConfirmation(false);
-      pendingTransactionRef.current = null;
-      
-      const msg = error.message || String(error);
-      
-      if (msg.includes("user rejected") || msg.includes("denied") || msg.includes("User denied")) {
-        onShowToast?.("error", "You cancelled the transaction. Please try again when ready.");
-      } else if (msg.includes("insufficient funds") || msg.includes("gas required exceeds")) {
-        onShowToast?.("error", "You don't have enough ETH to pay for gas fees. Please add ETH to your wallet.");
-      } else {
-        onShowToast?.("error", `Something went wrong with your ${mode}. Please try again.`);
-      }
-      
-      setIsLoading(false);
-      setShowStatus(false);
     }
   };
 
@@ -1059,7 +864,7 @@ const VaultApp = ({ onShowToast, mode }) => {
           <div className="status-overlay">
             <div className="status-modal-positioned">
               <h3 className="status-modal-title">Operation Status</h3>
-              {isLoading && !waitingForConfirmation && (
+              {isLoading && (
                 <div className="status-spinner">
                   <div className="spinner"></div>
                 </div>
@@ -1067,29 +872,6 @@ const VaultApp = ({ onShowToast, mode }) => {
               <p className="status-modal-text">
                 {status || "Waiting..."}
               </p>
-              {waitingForConfirmation && (
-                <button 
-                  className="status-confirm-btn" 
-                  onClick={handleConfirmInApp}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    backgroundColor: '#0070f3',
-                    color: 'white',
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    marginTop: '16px',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = '#0051cc'}
-                  onMouseOut={(e) => e.target.style.backgroundColor = '#0070f3'}
-                >
-                  Confirm in App
-                </button>
-              )}
               {txHash && (
                 <div style={{ marginTop: 12 }}>
                   <a
@@ -1102,7 +884,7 @@ const VaultApp = ({ onShowToast, mode }) => {
                   </a>
                 </div>
               )}
-              {!isLoading && !waitingForConfirmation && (
+              {!isLoading && (
                 <button className="status-close-btn" onClick={() => setShowStatus(false)}>
                   Close
                 </button>
