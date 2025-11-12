@@ -35,8 +35,7 @@ export const appKit = createAppKit({
     ]
   },
   features: {
-    socials: false, // hides Google/Apple/etc.
-    email: false    // hides email magic-link login
+    socials: false,
   }
 });
 
