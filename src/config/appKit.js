@@ -33,6 +33,10 @@ export const appKit = createAppKit({
         ? `${window.location.origin}/x-quo_icon.png`
         : 'https://xquo-chi.vercel.app/x-quo_icon.png'
     ]
+  },
+  features: {
+    socials: false, // hides Google/Apple/etc.
+    email: false    // hides email magic-link login
   }
-})
+});
 
