@@ -1,0 +1,164 @@
+.email-banner {
+  width: 100%;
+  background: radial-gradient(120% 120% at 0% 0%, #1a1332 0%, #07040f 65%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  color: #f5f5f5;
+  box-shadow: 0 25px 80px rgba(5, 0, 30, 0.65);
+  position: relative;
+}
+
+.email-banner__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.email-banner__close {
+  position: absolute;
+  top: 2.5rem;
+  right: 1.5rem;
+  width: clamp(24px, 3vw, 36px);
+  height: clamp(24px, 3vw, 36px);
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.email-banner__close img {
+  width: 100%;
+  height: 100%;
+}
+
+.email-banner__close:hover {
+  transform: translateY(-1px);
+}
+
+.email-banner__text {
+  max-width: 540px;
+  position: relative;
+  padding-right: 48px;
+}
+
+.email-banner__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.75rem;
+  color: #8a7bd6;
+  margin-bottom: 0.25rem;
+}
+
+.email-banner h3 {
+  font-size: clamp(1.7rem, 3.5vw, 2.3rem);
+  margin-bottom: 0.4rem;
+}
+
+.email-banner__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.email-banner__form input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.85rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(8, 5, 15, 0.6);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.email-banner__form input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.email-banner__form button {
+  padding: 0.9rem 1.8rem;
+  border-radius: 999px;
+  border: none;
+  font-weight: 600;
+  background: linear-gradient(135deg, #a855f7, #6366f1);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.email-banner__form button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 35px rgba(99, 102, 241, 0.45);
+}
+
+.email-banner__status {
+  font-size: 0.9rem;
+  margin-top: 0.1rem;
+}
+
+.email-banner__status.is-success {
+  color: #86efac;
+}
+
+.email-banner__status.is-error {
+  color: #f87171;
+}
+
+.email-banner-collapsed {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.65rem 1.35rem;
+  background: radial-gradient(120% 120% at 0% 0%, #1a1332 0%, #07040f 65%);
+  color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.email-banner-collapsed:focus-visible {
+  outline: 2px solid rgba(138, 123, 214, 0.5);
+  outline-offset: 3px;
+}
+
+.email-banner-collapsed:hover {
+  background: rgba(138, 123, 214, 0.25);
+  transform: translateY(-1px);
+}
+
+.email-banner-collapsed__label {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.75rem;
+  color: #8a7bd6;
+  font-weight: 600;
+}
+
+.email-banner-collapsed__icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .email-banner__form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .email-banner__form button {
+    width: 100%;
+  }
+}
+
