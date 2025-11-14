@@ -47,6 +47,12 @@ body, #root {
   padding: 20px 60px 40px; /* Closer to top on desktop */
 }
 
+.email-banner-wrapper {
+  max-width: 960px;
+  margin: 0 auto 32px;
+  width: 100%;
+}
+
 .main-container {
   display: flex;
   flex-direction: column;
@@ -73,6 +79,10 @@ body, #root {
     padding: 32px 40px;
   }
   
+  .email-banner-wrapper {
+    margin-bottom: 28px;
+  }
+  
   .main-container {
     gap: 24px; /* Restore gap on tablet/mobile */
   }
@@ -85,6 +95,10 @@ body, #root {
 @media (max-width: 768px) {
   .content-wrapper {
     padding: 24px 24px;
+  }
+  
+  .email-banner-wrapper {
+    margin-bottom: 24px;
   }
   
   .main-container {
@@ -101,6 +115,10 @@ body, #root {
     padding: 20px 20px;
   }
   
+  .email-banner-wrapper {
+    margin-bottom: 22px;
+  }
+  
   .pool-stats-container {
     margin-top: 24px;
   }
@@ -109,6 +127,10 @@ body, #root {
 @media (max-width: 480px) {
   .content-wrapper {
     padding: 16px 16px;
+  }
+  
+  .email-banner-wrapper {
+    margin-bottom: 20px;
   }
   
   .center-content {
@@ -125,6 +147,10 @@ body, #root {
     padding: 14px 12px;
   }
   
+  .email-banner-wrapper {
+    margin-bottom: 18px;
+  }
+  
   .center-content {
     gap: 20px;
   }
@@ -137,6 +163,10 @@ body, #root {
 @media (max-width: 320px) {
   .content-wrapper {
     padding: 12px 10px;
+  }
+  
+  .email-banner-wrapper {
+    margin-bottom: 16px;
   }
   
   .center-content {
