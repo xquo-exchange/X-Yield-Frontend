@@ -71,7 +71,7 @@ const EmailBanner = ({ onSubmit }) => {
           aria-label="Hide email banner"
           onClick={() => setIsCollapsed(true)}
         >
-          <img src={closeCircleIcon} alt="" aria-hidden="true" />
+          −
         </button>
         <div className="email-banner__text">
           <p className="email-banner__eyebrow">Stay in the loop</p>
