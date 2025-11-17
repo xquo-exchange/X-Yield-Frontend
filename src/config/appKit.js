@@ -4,10 +4,14 @@ import { cookieStorage, createStorage } from '@wagmi/core'
 import { base } from '@reown/appkit/networks'
 
 console.log('Env vars', import.meta.env)
-const projectId = import.meta.env.VITE_REOWN_PROJECT_ID
 
-if (!projectId) {
-  throw new Error('VITE_REOWN_PROJECT_ID is not defined')
+const fallbackProjectId = '88686807816516c396fdf733fd957d95'
+const projectId = import.meta.env.VITE_REOWN_PROJECT_ID || fallbackProjectId
+
+if (!import.meta.env.VITE_REOWN_PROJECT_ID) {
+  console.warn(
+    'VITE_REOWN_PROJECT_ID is not defined; using embedded fallback project ID. Set the env var to override.'
+  )
 }
 
 export const networks = [base]
