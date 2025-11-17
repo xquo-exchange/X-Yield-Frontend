@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./EmailBanner.css";
 import closeCircleIcon from "../assets/close-circle.svg";
 
@@ -6,6 +6,16 @@ const EmailBanner = ({ onSubmit }) => {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState(null); // { type: 'success'|'error', message: string }
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!status) return;
+
+    const timer = setTimeout(() => {
+      setStatus(null);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -17,22 +27,40 @@ const EmailBanner = ({ onSubmit }) => {
 
     const cleanedEmail = email.trim();
 
+    const mailchimpUrl =
+      "https://x-quo.us11.list-manage.com/subscribe/post";
+
+    const payload = new URLSearchParams({
+      EMAIL: cleanedEmail,
+      u: "82e2b865d7d8ef53291676964",
+      id: "73b0c7601b",
+      "b_82e2b865d7d8ef53291676964_73b0c7601b": "",
+      f_id: "00b3a3e1f0",
+    });
+
+    console.log("[EmailBanner] Submitting email to Mailchimp", {
+      email: cleanedEmail,
+      endpoint: mailchimpUrl,
+    });
+
     try {
-      const response = await fetch("/api/saveEmail", {
+      await fetch(mailchimpUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanedEmail }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: payload.toString(),
+        mode: "no-cors",
       });
 
-      if (!response.ok) {
-        throw new Error("Request failed");
-      }
+      console.log("[EmailBanner] Mailchimp submission sent");
 
-      setStatus({ type: "success", message: "Thanks! We'll be in touch soon." });
+      setStatus({
+        type: "success",
+        message: "Thanks! You are now subscribed to our newsletter.",
+      });
       setEmail("");
       onSubmit?.(cleanedEmail);
     } catch (error) {
-      console.error("Failed to save email:", error);
+      console.error("[EmailBanner] Failed to submit to Mailchimp:", error);
       setStatus({
         type: "error",
         message: "Could not save email. Please try again later.",
