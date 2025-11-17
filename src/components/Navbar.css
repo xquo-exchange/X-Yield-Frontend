@@ -152,7 +152,7 @@
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(20px);
   overflow: visible;
-  z-index: 2147483647;
+  z-index: 999999999999999999;
   pointer-events: auto;
 }
 

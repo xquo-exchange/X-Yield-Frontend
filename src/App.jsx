@@ -7,6 +7,7 @@ import Sidebar from "./components/Sidebar";
 import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
+import EmailBanner from "./components/EmailBanner";
 import "./App.css";
 
 function AppContent() {
@@ -22,8 +23,8 @@ function AppContent() {
 
   const handleConnect = async () => {
     const result = await connectWallet();
-    if (!result.success) {
-      showToast('error', result.message);
+    if (!result.success && result?.error !== "NO_ACCOUNT") {
+      showToast("error", result.message);
     }
   };
 
@@ -38,7 +39,9 @@ function AppContent() {
       <Navbar onShowToast={showToast} />
       
       <div className="content-wrapper">
-        
+        <div className="email-banner-wrapper">
+          <EmailBanner />
+        </div>
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
           
