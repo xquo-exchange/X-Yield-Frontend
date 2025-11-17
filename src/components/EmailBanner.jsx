@@ -5,6 +5,7 @@ import closeCircleIcon from "../assets/close-circle.svg";
 const EmailBanner = ({ onSubmit }) => {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState(null); // { type: 'success'|'error', message: string }
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
@@ -43,6 +44,8 @@ const EmailBanner = ({ onSubmit }) => {
       endpoint: mailchimpUrl,
     });
 
+    setIsSubmitting(true);
+
     try {
       await fetch(mailchimpUrl, {
         method: "POST",
@@ -65,6 +68,8 @@ const EmailBanner = ({ onSubmit }) => {
         type: "error",
         message: "Could not save email. Please try again later.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -103,31 +108,37 @@ const EmailBanner = ({ onSubmit }) => {
         </button>
         <div className="email-banner__text">
           <p className="email-banner__eyebrow">Stay in the loop</p>
-          <h3>Get early access to vault updates</h3>
+          <h3>Get early access to X-QUO updates</h3>
           <p>
-            Subscribe to receive vault news, yield announcements, and early
-            feature previews directly in your inbox.
+            Vault intel, yield drops, and future perks.
           </p>
         </div>
 
         <form className="email-banner__form" onSubmit={handleSubmit}>
           <input
             type="email"
-            placeholder="you@example.com"
+            placeholder="your@email.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             aria-label="Email address"
+            disabled={isSubmitting}
           />
-          <button type="submit">Notify me</button>
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Sending..." : "Notify me"}
+          </button>
         </form>
 
-        {status && (
+        {(isSubmitting || status) && (
           <p
             className={`email-banner__status ${
-              status.type === "error" ? "is-error" : "is-success"
+              isSubmitting
+                ? "is-pending"
+                : status.type === "error"
+                ? "is-error"
+                : "is-success"
             }`}
           >
-            {status.message}
+            {isSubmitting ? "Sending to Mailchimp..." : status.message}
           </p>
         )}
       </div>

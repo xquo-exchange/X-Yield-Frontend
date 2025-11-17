@@ -23,8 +23,8 @@ function AppContent() {
 
   const handleConnect = async () => {
     const result = await connectWallet();
-    if (!result.success) {
-      showToast('error', result.message);
+    if (!result.success && result?.error !== "NO_ACCOUNT") {
+      showToast("error", result.message);
     }
   };
 
@@ -39,9 +39,6 @@ function AppContent() {
       <Navbar onShowToast={showToast} />
       
       <div className="content-wrapper">
-        <div className="email-banner-wrapper">
-          <EmailBanner />
-        </div>
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
           
@@ -52,6 +49,10 @@ function AppContent() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="email-banner-wrapper">
+        <EmailBanner />
       </div>
 
       {toast && (
