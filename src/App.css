@@ -43,13 +43,13 @@ body, #root {
 
 .content-wrapper {
   width: 100%;
-  min-height: calc(100vh - 80px);
-  padding: 20px 60px 40px; /* Closer to top on desktop */
+  min-height: calc(100vh - 200px);
+  padding: 20px 60px 12px; /* Closer to top on desktop */
 }
 
 .email-banner-wrapper {
   max-width: 960px;
-  margin: 0 auto 32px;
+  margin: 24px auto 20px;
   width: 100%;
 }
 
