@@ -21,7 +21,7 @@ const Navbar = ({ onShowToast }) => {
     const result = await connectWallet();
     if (result.success) {
       onShowToast("success", "Wallet connected successfully");
-    } else {
+    } else if (result?.error !== "NO_ACCOUNT") {
       onShowToast("error", result.message);
     }
   };
