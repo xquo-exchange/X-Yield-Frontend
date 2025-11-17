@@ -39,6 +39,9 @@ function AppContent() {
       <Navbar onShowToast={showToast} />
       
       <div className="content-wrapper">
+        <div className="email-banner-wrapper">
+          <EmailBanner />
+        </div>
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
           
@@ -49,10 +52,6 @@ function AppContent() {
             />
           </div>
         </div>
-      </div>
-
-      <div className="email-banner-wrapper">
-        <EmailBanner />
       </div>
 
       {toast && (
