@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
+import { computeAPY } from "../utils/calculateYield"
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
@@ -50,13 +51,12 @@ const VaultApp = ({ onShowToast, mode }) => {
   const [showStatus, setShowStatus] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
-  
+  const [BASE_APY, setBaseApy] = useState(0);
+    
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
   const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
   
-  const BASE_APY = 8.5; // Vault APY
-
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
   }, [isConnected, showWarning]);
@@ -64,13 +64,22 @@ const VaultApp = ({ onShowToast, mode }) => {
   const closeWarning = () => {
     setShowWarning(false);
   };
+
+  useEffect(() => {
+    async function fetchData() {
+      const newApy = await computeAPY();
+      setBaseApy(newApy);
+    }    
+    fetchData();
+  }, [isConnected]);
   
   const calculateYield = () => {
     if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
     
+
     const principal = parseFloat(amount);
     const apy = BASE_APY;
-    
+
     const yearly = principal * (apy / 100);
     const monthly = yearly / 12;
     const daily = yearly / 365;
