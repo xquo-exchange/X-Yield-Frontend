@@ -38,11 +38,14 @@ This application provides a clean, user-friendly interface for:
 - A Web3 wallet (MetaMask, Trust Wallet, Rainbow, etc.)
 - ETH on Base network for gas fees
 
-### Installation
+### Installation & Setup
 
 ```bash
 npm install
+cp .env.example .env
 ```
+
+Fill in the `.env` file with your RPC endpoint and AppKit (WalletConnect) Project ID before running the app.
 
 ### Development
 
@@ -60,16 +63,19 @@ npm run build
 
 ## 🔧 Configuration
 
-### Network Settings
+### Environment & Network Settings
 
-The app is configured for **Base mainnet**:
-- Chain ID: `8453`
-- RPC URL: `https://base.llamarpc.com`
-- Explorer: `https://basescan.org`
+Create or update `.env` (see `.env.example`) with the following keys:
 
-To modify network settings, edit:
-- `src/utils/walletconnectProvider.js` - WalletConnect configuration
-- `src/contexts/WalletContext.jsx` - Network validation and switching
+```bash
+VITE_RPC_URL=https://mainnet.base.org
+VITE_REOWN_PROJECT_ID=your_walletconnect_project_id
+```
+
+- `VITE_RPC_URL` is consumed by `src/config/env.js` to create a read-only RPC transport for AppKit/Wagmi.
+- `VITE_REOWN_PROJECT_ID` is required for WalletConnect/AppKit. No fallback is embedded in the codebase.
+
+The rest of the Base-specific configuration (chain ID `8453`, explorer URLs, contract addresses) lives in `src/config/appKit.js`, `src/contexts/WalletContext.jsx`, and `src/lib/const/base.js`.
 
 ### Fee Configuration
 
@@ -143,7 +149,7 @@ The current implementation includes **placeholder logic** for Morpho contract in
    await tx.wait();
    ```
 
-## 📁 Project Structure
+# Project Structure
 
 ```
 C:\x-yield-frontend/
@@ -170,10 +176,10 @@ C:\x-yield-frontend/
 └── vite.config.js
 ```
 
-## 🔐 Security Notes
+# Security Notes
 
 - Always verify contract addresses before transactions
-- Test thoroughly on Base testnet (Goerli) before mainnet
+- Test thoroughly on Base testnet before mainnet
 - Users should understand DeFi risks (see disclaimer in app)
 - Never commit private keys or sensitive data
 
@@ -185,7 +191,7 @@ This project was built using the X-QUO reference files from `c:\react-fronted\sr
 
 This is a demonstration project. Ensure you have proper licensing for production use.
 
-## 🤝 Contributing
+# Contributing
 
 To extend this project:
 1. Complete Morpho protocol integration
@@ -194,12 +200,12 @@ To extend this project:
 4. Add analytics/tracking
 5. Implement proper error handling for all edge cases
 
-## 🐛 Known Issues
+# Known Issues
 
 - Morpho contract integration is placeholder logic
 - Asset files (logos) need to be copied manually (see `public/README_ASSETS.md`)
 
-## 📞 Support
+# Support
 
 For issues related to:
 - **Morpho Protocol**: [Morpho Documentation](https://docs.morpho.xyz)
