@@ -62,7 +62,7 @@ export async function computeAPY() {
       if (!payload) {
             throw new Error("Dati 'marketByUniqueKey' non trovati nella risposta.");
       }
-      const apyNow = parseFloat(payload.state?.dailyNetSupplyApy ?? 0.0) * 100;
+      const apyNow = parseFloat(payload.state?.netSupplyApy ?? 0.0) * 100;
 
       const allocationAdjustedBigNumber = allocationBigNumber.mul(powerOfTen);
       const allocationAdjustedFloat = parseFloat(allocationAdjustedBigNumber.toString());
