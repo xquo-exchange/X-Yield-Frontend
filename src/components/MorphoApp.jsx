@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
+import { computeAPY } from "../utils/calculateYield"
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
@@ -55,7 +56,8 @@ const VaultApp = ({ onShowToast, mode }) => {
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
   const WITHDRAWAL_FEE = 0.5; // Example: 0.5% withdrawal fee
   
-  const BASE_APY = 8.5; // Vault APY
+  const [BASE_APY, setBaseApy] = useState(0);
+  const [isApyLoading, setIsApyLoading] = useState(true);
 
   useEffect(() => {
     if (isConnected && showWarning) setShowWarning(false);
@@ -65,6 +67,23 @@ const VaultApp = ({ onShowToast, mode }) => {
     setShowWarning(false);
   };
   
+
+  useEffect(() => {
+    async function fetchData() {
+      setIsApyLoading(true);
+      try {
+        const newApy = await computeAPY();
+        setBaseApy(newApy);
+      } catch (error) {
+        console.error("Error fetching APY:", error);
+        setBaseApy(0);
+      } finally {
+        setIsApyLoading(false);
+      }
+    }    
+    fetchData();
+  }, [isConnected]);
+
   const calculateYield = () => {
     if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
     
@@ -725,7 +744,9 @@ const VaultApp = ({ onShowToast, mode }) => {
             </div>
             <div className="pool-stat">
               <span className="pool-stat-label">APY</span>
-              <span className="pool-stat-value apy-highlight">{BASE_APY.toFixed(2)}%</span>
+              <span className="pool-stat-value apy-highlight">
+                {isApyLoading ? "Loading..." : `${BASE_APY.toFixed(2)}%`}
+              </span>
             </div>
             <div className="pool-stat">
               <span className="pool-stat-label">Network</span>
@@ -791,7 +812,7 @@ const VaultApp = ({ onShowToast, mode }) => {
               </div>
             </div>
             <p className="yield-note">
-              Based on {BASE_APY.toFixed(2)}% APY
+              {isApyLoading ? "Loading APY..." : `Based on ${BASE_APY.toFixed(2)}% APY`}
             </p>
             {DEPOSIT_FEE !== null && (
               <div className="fee-notice">
