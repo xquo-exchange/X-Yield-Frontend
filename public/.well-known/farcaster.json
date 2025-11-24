@@ -1,27 +1,28 @@
 {
-  "accountAssociation": {
-    "header": "REPLACE_WITH_ACCOUNT_ASSOCIATION_HEADER",
-    "payload": "eyJkb21haW4iOiJ5b3VyLWRvbWFpbi5jb20ifQ",
-    "signature": "REPLACE_WITH_ACCOUNT_ASSOCIATION_SIGNATURE"
-  },
-  "miniapp": {
+  "frame": {
+    "name": "X-QUO",
     "version": "1",
-    "name": "X-QUO Vault",
-    "iconUrl": "https://your-domain.com/x-quo_icon.png",
-    "homeUrl": "https://your-domain.com",
-    "description": "Earn yield on USDC through the X-QUO vault on Base.",
-    "tagline": "Earn Base yield with USDC.",
-    "subtitle": "USDC yield on Base",
-    "splashImageUrl": "https://your-domain.com/x-quo_icon.png",
+    "iconUrl": "https://www.x-quo.app/icon.png",
+    "homeUrl": "https://x-quo.app",
+    "splashImageUrl": "https://www.x-quo.app/icon.png",
     "splashBackgroundColor": "#000000",
+    "webhookUrl": "https://x-quo.app/api/webhook",
+    "subtitle": "USDC yield on Base",
+    "description": "Earn yield on USDC through the X-QUO vault on Base.",
     "primaryCategory": "finance",
     "tags": [
       "defi",
       "base",
-      "yield"
+      "yield",
+      "startup"
     ],
-    "ogTitle": "X-QUO Vault",
-    "ogDescription": "Access the X-QUO USDC vault on Base right inside Farcaster.",
-    "ogImageUrl": "https://your-domain.com/x-quo_icon.png"
+    "tagline": "Earn USDC yield on base",
+    "ogTitle": "X-QUO – USDC yield on Base",
+    "ogDescription": "Earn yield on USDC through the X-QUO vault on Base"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjE1MjY3MDYsInR5cGUiOiJhdXRoIiwia2V5IjoiMHhkNGU3NkZhYjMyOThGNDU5OGRmRWEzNDZhRGM5MzY3M2Q1RTQwMjNhIn0",
+    "payload": "eyJkb21haW4iOiJ4LXF1by5jb20ifQ",
+    "signature": "tMnDNN6JnJjJFvaDc5ndlq5Oahn3OglFMIsIocWzz7MF2poJ8LkRB/dbD8vwnlUNIJx2HdxIU3g0BF5OY6ObHBw="
   }
 }
