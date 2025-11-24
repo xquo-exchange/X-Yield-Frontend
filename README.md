@@ -122,6 +122,41 @@ Color palette:
 ✅ Transaction status modals  
 ✅ Legal disclaimer section  
 
+## 🚀 Farcaster Mini App integration
+
+The project is now wired for Farcaster Mini Apps per the official docs:
+
+- Added `@farcaster/miniapp-sdk` dependency.
+- Mini App detection + `sdk.actions.ready()` is called in `src/App.jsx` so the splash screen hides only after the app is ready inside a Mini App host.
+- Manifest lives at `public/.well-known/farcaster.json` and will be served at `/.well-known/farcaster.json` when deployed.
+
+### What you must update before going live
+
+1) **Manifest account association**  
+   - Replace `REPLACE_WITH_ACCOUNT_ASSOCIATION_HEADER` and `REPLACE_WITH_ACCOUNT_ASSOCIATION_SIGNATURE` in `public/.well-known/farcaster.json` with values from the Warpcast Mini App Manifest tool (`https://farcaster.xyz/~/developers/new`).  
+   - Update `payload` if your production domain differs (`eyJkb21haW4iOiJ5b3VyLWRvbWFpbi5jb20ifQ` encodes `your-domain.com`). Make sure the domain matches exactly.
+
+2) **Domain + asset URLs**  
+   - Swap `https://your-domain.com` in the manifest for your real domain and ensure `iconUrl`, `splashImageUrl`, and `ogImageUrl` point to hosted assets (3:2 image for OG is recommended; icon 200x200 for splash).
+
+3) **Host the manifest**  
+   - Deploy the site so `https://<your-domain>/.well-known/farcaster.json` is publicly reachable. Vite will copy the file from `public/.well-known`.
+
+### How to test in Developer Mode
+
+1) Enable Developer Mode in Warpcast: `https://farcaster.xyz/~/settings/developer-tools`.
+2) Run the app locally: `npm install` then `npm run dev` (defaults to `http://localhost:5173`).
+3) Point the Mini App previewer to your dev URL or a tunneled URL (e.g., `https://<tunnel>.ngrok.io`) so the host can load it.
+4) Confirm the splash screen hides (ready fired) and the app renders. Check browser console for `Mini App ready() failed` logs if something blocks the call.
+5) Verify the manifest by curling it: `curl -s https://<your-domain>/.well-known/farcaster.json`.
+
+### Production checklist
+
+- Build: `npm run build`.
+- Deploy the `dist` output and ensure HTTPS is enabled.
+- Validate the manifest from the deployed domain.
+- Submit/preview in Warpcast Developer Mode and ensure the header/splash data render correctly.
+
 ## 🔨 TODO: Morpho Integration
 
 The current implementation includes **placeholder logic** for Morpho contract interactions. To complete the integration:
