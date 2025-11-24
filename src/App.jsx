@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
 import Orb from "./components/Orb";
@@ -96,6 +97,27 @@ function AppContent() {
 }
 
 function App() {
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const isMiniApp = await sdk.isInMiniApp();
+        if (cancelled || !isMiniApp) {
+          return;
+        }
+
+        await sdk.actions.ready();
+      } catch (error) {
+        console.error("Mini App ready() failed:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <WalletProvider>
       <div className="app">
