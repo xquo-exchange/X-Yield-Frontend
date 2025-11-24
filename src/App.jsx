@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
 import Orb from "./components/Orb";
@@ -8,12 +8,34 @@ import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
 import EmailBanner from "./components/EmailBanner";
+import SocialLinks from "./components/SocialLinks";
 import "./App.css";
 
 function AppContent() {
   const [activePage, setActivePage] = useState("deposit");
   const [toast, setToast] = useState(null);
   const { isConnected, connectWallet } = useWallet();
+
+  useEffect(() => {
+    if (!isConnected) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.height = "100vh";
+      document.documentElement.style.height = "100vh";
+    } else {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.height = "";
+      document.documentElement.style.height = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      document.body.style.height = "";
+      document.documentElement.style.height = "";
+    };
+  }, [isConnected]);
 
   const showToast = (type, message, txHash = null) => {
     setToast({ type, message, txHash });
@@ -29,11 +51,15 @@ function AppContent() {
   };
 
   if (!isConnected) {
-    return <GalaxyLanding onConnect={handleConnect} />;
+    return (
+      <div className="landing-layout">
+        <GalaxyLanding onConnect={handleConnect} />
+        <SocialLinks variant="landing" />
+      </div>
+    );
   }
 
   return (
-
     <>
       <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
       <Navbar onShowToast={showToast} />
@@ -63,6 +89,8 @@ function AppContent() {
           duration={5000}
         />
       )}
+
+      <SocialLinks />
     </>
   );
 }
@@ -71,7 +99,9 @@ function App() {
   return (
     <WalletProvider>
       <div className="app">
-        <AppContent />
+        <div className="app-body">
+          <AppContent />
+        </div>
       </div>
     </WalletProvider>
   );
