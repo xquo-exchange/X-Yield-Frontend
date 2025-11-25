@@ -191,8 +191,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       setStatus("Approving USDC...");
 
       // Step 1: Approve USDC for vault
-      const approvalAmount = ethers.constants.MaxUint256; // Approve max for gas efficiency
-      console.log("🔵 Approval amount (MaxUint256):", approvalAmount.toString());
+      const approvalAmount = requiredAmount; // Approve exact amount only
+      console.log("🔵 Approval amount (exact):", approvalAmount.toString());
 
       // Check current allowance first
       const currentAllowance = await usdcContract.allowance(account, VAULT_ADDRESS);
