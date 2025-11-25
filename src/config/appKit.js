@@ -22,6 +22,8 @@ export const appKit = createAppKit({
   adapters: [wagmiAdapter],
   projectId,
   networks,
+  enableNetworkSwitch: false,
+  showWallets: false,
   themeMode: 'dark',
   metadata: {
     name: 'X-QUO Vault',
