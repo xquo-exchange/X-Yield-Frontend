@@ -7,19 +7,14 @@
     <title>X-QUO VAULT</title>
 
     <!-- Farcaster Miniapp Meta -->
-    <meta 
+    <meta
       name="fc:miniapp"
-      content='{
-        "version": "1",
-        "imageUrl": "https://x-quo.app/icon.png",
-        "button": {
-          "title": "Open Vault",
-          "action": {
-            "type": "open_url",
-            "url": "https://x-quo.app/"
-          }
-        }
-      }'
+      content='{"version":"1","imageUrl":"https://x-quo.app/icon.png","button":{"title":"Open Vault","action":{"type":"launch_miniapp","url":"https://x-quo.app/","name":"X-QUO Vault","splashImageUrl":"https://x-quo.app/icon.png","splashBackgroundColor":"#000000"}}}'
+    />
+    <!-- Per retrocompatibilità (non strettamente necessario ma consigliato) -->
+    <meta
+      name="fc:frame"
+      content='{"version":"1","imageUrl":"https://x-quo.app/icon.png","button":{"title":"Open Vault","action":{"type":"launch_frame","url":"https://x-quo.app/","name":"X-QUO Vault","splashImageUrl":"https://x-quo.app/icon.png","splashBackgroundColor":"#000000"}}}'
     />
 
     <!-- Google Tag Manager -->
@@ -39,7 +34,7 @@
 
       gtag('config', 'G-5ZNCMK479X');
     </script>
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/x-quo_icon.png" />
     <link rel="apple-touch-icon" href="/x-quo_icon.png" />
@@ -50,7 +45,7 @@
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-P8SH4WGJ"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
-    
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
