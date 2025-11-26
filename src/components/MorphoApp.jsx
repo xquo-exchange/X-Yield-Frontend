@@ -168,7 +168,14 @@ const VaultApp = ({ onShowToast, mode }) => {
     try {
       if (isFarcaster) setTxDebugInfo("🔄 Getting signer...");
       const signer = walletProvider.getSigner();
-      console.log("🔵 Signer address:", await signer.getAddress());
+      
+      // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
+      // We already have the account address from wallet context
+      if (!isFarcaster) {
+        console.log("🔵 Signer address:", await signer.getAddress());
+      } else {
+        console.log("🔵 Signer address (from context):", account);
+      }
 
       // FARCASTER FIX: Use fallback RPC for read operations
       let readProvider = walletProvider;
@@ -522,7 +529,14 @@ const VaultApp = ({ onShowToast, mode }) => {
     try {
       if (isFarcaster) setTxDebugInfo("🔄 Getting signer...");
       const signer = walletProvider.getSigner();
-      console.log("🟠 Signer address:", await signer.getAddress());
+      
+      // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
+      // We already have the account address from wallet context
+      if (!isFarcaster) {
+        console.log("🟠 Signer address:", await signer.getAddress());
+      } else {
+        console.log("🟠 Signer address (from context):", account);
+      }
 
       // FARCASTER FIX: Use fallback RPC for read operations
       let readProvider = walletProvider;
@@ -612,8 +626,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("  - receiver (account):", account);
       console.log("  - owner (account):", account);
 
-      // Check ETH balance for gas first
-      const ethBalance = await signer.getBalance();
+      // Check ETH balance for gas first (READ operation)
+      const ethBalance = await readProvider.getBalance(account);
       console.log("🟠 ETH balance (raw):", ethBalance.toString());
       console.log("🟠 ETH balance (formatted):", ethers.utils.formatEther(ethBalance));
       
@@ -621,6 +635,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       const minGasRequired = ethers.utils.parseEther("0.001");
       if (ethBalance.lt(minGasRequired)) {
         onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
+        if (isFarcaster) setTxDebugInfo("❌ Insufficient ETH for gas");
         setIsLoading(false);
         return;
       }
@@ -688,14 +703,15 @@ const VaultApp = ({ onShowToast, mode }) => {
         gasLimit = ethers.BigNumber.from("400000");
       }
 
-      // Verify we have enough ETH for the gas
-      const gasPrice = await signer.getGasPrice();
+      // Verify we have enough ETH for the gas (READ operation)
+      const gasPrice = await readProvider.getGasPrice();
       const maxGasCost = gasLimit.mul(gasPrice);
       console.log("🟠 Gas price:", gasPrice.toString());
       console.log("🟠 Max gas cost:", ethers.utils.formatEther(maxGasCost), "ETH");
       
       if (ethBalance.lt(maxGasCost)) {
         onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.utils.formatEther(maxGasCost)} ETH but have ${ethers.utils.formatEther(ethBalance)} ETH.`);
+        if (isFarcaster) setTxDebugInfo("❌ Insufficient ETH for gas cost");
         setIsLoading(false);
         return;
       }
