@@ -7,13 +7,23 @@ When the app was opened in the Farcaster Mini App:
 - Works fine with Rainbow wallet and other external wallets
 - Works fine on desktop
 
-## Root Cause
+## Root Causes
+
+### Issue 1: Mobile Disconnect Logic
 The app's mobile detection code was treating Farcaster as a "regular mobile browser" and:
 1. **Immediately disconnecting** the wallet after connection
 2. **Clearing localStorage** and cookies on page load
 3. **Preventing auto-reconnection** of existing accounts
 
 This caused the Farcaster wallet to connect but immediately get disconnected, preventing balance fetching.
+
+### Issue 2: Provider Method Incompatibility
+Farcaster's wallet provider doesn't support standard `eth_call` method (error code 4200):
+```
+Provider.UnsupportedMethodError: The provider does not support the requested method.
+```
+
+This prevented reading balances from smart contracts even when wallet was connected.
 
 ## Solution Implemented
 
@@ -24,7 +34,20 @@ const isFarcasterEnv = typeof navigator !== 'undefined' &&
   /Farcaster|Warpcast/i.test(navigator.userAgent);
 ```
 
-### 2. Modified Mobile Behavior
+### 2. Fallback RPC Provider for Farcaster
+Added automatic fallback to public RPC for read-only operations in Farcaster:
+
+**In `fetchBalances()` function:**
+- Detects if Farcaster provider fails (error code 4200)
+- Automatically switches to public Base RPC (`https://mainnet.base.org`) for balance reads
+- Keeps Farcaster wallet provider for transactions (signing)
+- **This does NOT affect desktop or other wallets** - only Farcaster
+
+This is a smart dual-provider approach:
+- **Farcaster wallet** = Used for signing transactions
+- **Public RPC** = Used for reading balances (when Farcaster provider fails)
+
+### 3. Modified Mobile Behavior
 Updated three key areas in `src/contexts/WalletContext.jsx`:
 
 #### A. Initial Setup (Line ~131)
@@ -39,7 +62,7 @@ Updated three key areas in `src/contexts/WalletContext.jsx`:
 - **Before:** All mobile devices disconnected wallet on page unload
 - **After:** Only regular mobile (not Farcaster) disconnects on unload
 
-### 3. Added Debug UI (Farcaster Only)
+### 4. Added Debug UI (Farcaster Only)
 Added temporary debugging interface that only shows in Farcaster:
 - Shows balance fetch status
 - Displays wallet address, chainId, provider status
@@ -51,7 +74,7 @@ Debug info appears in:
 - `src/contexts/WalletContext.jsx` - Added `debugInfo` state
 - `src/components/MorphoApp.jsx` - Added visual debug panel
 
-### 4. Enhanced Console Logging
+### 5. Enhanced Console Logging
 Added detailed console logs throughout the balance fetching process:
 - Environment detection
 - Balance fetch triggers
@@ -110,10 +133,25 @@ When debugging is complete, remove:
    - Remove `isFarcaster` variable
    - Remove the entire debug panel div (lines with "Farcaster Debug")
 
-## Notes
+## Important Notes
 
+### Safety & Compatibility
+- ✅ **Does NOT break desktop** - All desktop functionality unchanged
+- ✅ **Does NOT break Rainbow/MetaMask** - External wallets work normally
+- ✅ **Does NOT break regular mobile** - Standard mobile behavior preserved
+- ✅ **Only affects Farcaster** - Fallback RPC only used in Farcaster when needed
+
+### Technical Details
 - Debug UI is **ONLY visible in Farcaster** (not desktop, not regular mobile)
+- Fallback RPC is **ONLY used in Farcaster** when provider fails
 - Console logs remain for all environments
 - The fix does NOT require any Reown/WalletConnect configuration changes
 - Works with Farcaster's built-in wallet and external wallets like Rainbow
+
+### How It Works
+1. **Desktop/Rainbow/Other wallets**: Use their own provider for everything (unchanged)
+2. **Farcaster wallet**: 
+   - Uses Farcaster wallet for **transaction signing** (deposits/withdrawals)
+   - Uses public RPC for **balance reading** (when Farcaster provider fails)
+   - Fallback is automatic and transparent to the user
 
