@@ -390,24 +390,34 @@ export const WalletProvider = ({ children }) => {
       try {
         // FARCASTER FIX: Use fallback RPC provider for read operations
         // Farcaster wallet provider doesn't support eth_call, so we use public RPC for reads
-        let readProvider = provider;
-        
-        // Test if provider supports eth_call (for Farcaster compatibility)
+        let readProvider;
         let needsFallback = false;
-        if (isFarcasterEnv) {
+        
+        // Test if provider exists and supports eth_call (for Farcaster compatibility)
+        if (provider && isFarcasterEnv) {
           try {
             // Try a simple call to test provider
             await provider.getNetwork();
+            readProvider = provider;
           } catch (error) {
             if (error.code === 4200 || error.message?.includes('does not support')) {
               console.log('🔄 Farcaster provider needs fallback - using public RPC for reads');
               needsFallback = true;
+            } else {
+              // Some other error, rethrow
+              throw error;
             }
           }
+        } else if (provider) {
+          // Not Farcaster, use provider as-is
+          readProvider = provider;
+        } else {
+          // No provider at all, need fallback
+          needsFallback = true;
         }
         
         // Create fallback provider if needed (public Base RPC for read-only operations)
-        if (needsFallback || !provider) {
+        if (needsFallback) {
           console.log('🔄 Using fallback RPC provider for balance reads');
           if (isFarcasterEnv) {
             setDebugInfo(`🔄 Using fallback RPC...`);
