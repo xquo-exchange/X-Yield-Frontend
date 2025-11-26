@@ -8,6 +8,7 @@ import {
   watchChainId,
 } from "@wagmi/core";
 import { appKit, wagmiAdapter } from "../config/appKit";
+import { isMobileDevice } from "../utils/isMobile";
 
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -92,7 +93,10 @@ export const WalletProvider = ({ children }) => {
           setChainId(typeof currentChainId === "number" ? currentChainId : null);
         }
 
-        localStorage.setItem("walletConnected", "true");
+        // Only save to localStorage on desktop, not on mobile
+        if (!isMobileDevice()) {
+          localStorage.setItem("walletConnected", "true");
+        }
       } catch (error) {
         console.error("Failed to initialize provider:", error);
         setProvider(null);
@@ -122,6 +126,50 @@ export const WalletProvider = ({ children }) => {
       localStorage.setItem("appVersion", APP_VERSION);
     }
 
+    // On mobile devices, clear wallet connection state and don't auto-reconnect
+    if (isMobileDevice()) {
+      // Clear wallet connection flag
+      localStorage.removeItem("walletConnected");
+      
+      // Disconnect any existing wallet connection
+      handleDisconnect();
+      
+      // Clear wagmi storage (cookies) for mobile
+      try {
+        // Clear all cookies that might contain wallet connection data
+        document.cookie.split(";").forEach((cookie) => {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          // Clear wagmi-related cookies
+          if (name.includes("wagmi") || name.includes("wc@") || name.includes("reown")) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+          }
+        });
+      } catch (error) {
+        console.warn("Failed to clear cookies:", error);
+      }
+      
+      // Don't auto-reconnect on mobile - user must manually connect each time
+      // Set up watchers but don't initialize existing account
+      accountWatcherRef.current = watchAccount(wagmiConfig, {
+        onChange: handleAccountChange,
+      });
+
+      networkWatcherRef.current = watchChainId(wagmiConfig, {
+        onChange: (nextChainId) =>
+          setChainId(typeof nextChainId === "number" ? nextChainId : null),
+      });
+
+      return () => {
+        accountWatcherRef.current?.();
+        accountWatcherRef.current = null;
+        networkWatcherRef.current?.();
+        networkWatcherRef.current = null;
+      };
+    }
+
+    // Desktop behavior: auto-reconnect if account exists
     const existingAccount = getAccount(wagmiConfig);
     if (existingAccount?.address) {
       initializeProvider(existingAccount);
@@ -142,7 +190,7 @@ export const WalletProvider = ({ children }) => {
       networkWatcherRef.current?.();
       networkWatcherRef.current = null;
     };
-  }, [handleAccountChange, initializeProvider, wagmiConfig]);
+  }, [handleAccountChange, initializeProvider, wagmiConfig, handleDisconnect]);
 
   const connectWallet = useCallback(async () => {
     if (connecting) {
@@ -357,6 +405,28 @@ export const WalletProvider = ({ children }) => {
       fetchBalances(false);
     }
   }, [walletAddress, provider, chainId, fetchBalances]);
+
+  useEffect(() => {
+    // On mobile, disconnect wallet when page is about to unload/reload
+    if (isMobileDevice()) {
+      const handleBeforeUnload = () => {
+        // Clear localStorage
+        localStorage.removeItem("walletConnected");
+        
+        // Disconnect wallet
+        handleDisconnect();
+      };
+
+      // Handle page unload/reload
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      window.addEventListener("pagehide", handleBeforeUnload);
+
+      return () => {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        window.removeEventListener("pagehide", handleBeforeUnload);
+      };
+    }
+  }, [handleDisconnect]);
 
   const checkBalance = useCallback(
     async (tokenAddress, requiredAmount) => {
