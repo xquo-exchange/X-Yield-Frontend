@@ -726,8 +726,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🟠 ETH balance (raw):", ethBalance.toString());
       console.log("🟠 ETH balance (formatted):", ethers.utils.formatEther(ethBalance));
       
-      // Minimum gas required (rough estimate: 0.001 ETH should be enough for most transactions)
-      const minGasRequired = ethers.utils.parseEther("0.001");
+      // Minimum gas required (rough estimate: 0.0001 ETH should be enough for most transactions)
+      const minGasRequired = ethers.utils.parseEther("0.0001");
       if (ethBalance.lt(minGasRequired)) {
         onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
         if (isFarcaster) setTxDebugInfo("❌ Insufficient ETH for gas");
