@@ -243,20 +243,48 @@ const VaultApp = ({ onShowToast, mode }) => {
       if (currentAllowance.lt(requiredAmount)) {
         console.log("🔵 Approving USDC...");
         if (isFarcaster) setTxDebugInfo("📝 Requesting approval signature...");
-        const approveTx = await usdcContractWrite.approve(VAULT_ADDRESS, approvalAmount);
-        console.log("🔵 Approve tx hash:", approveTx.hash);
-        setTxHash(approveTx.hash);
-        if (isFarcaster) setTxDebugInfo(`⏳ Approval sent: ${approveTx.hash.slice(0,10)}...`);
         
-        // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
-        if (isFarcaster) {
-          const receipt = await readProvider.waitForTransaction(approveTx.hash);
-          console.log("✅ USDC approved (via fallback provider)");
-        } else {
-          await approveTx.wait();
-          console.log("✅ USDC approved");
+        try {
+          const approveTx = await usdcContractWrite.approve(VAULT_ADDRESS, approvalAmount);
+          console.log("🔵 Approval transaction received");
+          console.log("🔵 Transaction object type:", typeof approveTx);
+          console.log("🔵 Transaction object keys:", Object.keys(approveTx || {}));
+          
+          try {
+            console.log("🔵 Trying to access tx.hash:", approveTx.hash);
+            setTxHash(approveTx.hash);
+            if (isFarcaster) setTxDebugInfo(`⏳ Approval sent: ${approveTx.hash ? approveTx.hash.slice(0,10) : 'pending'}...`);
+          } catch (hashError) {
+            console.error("❌ Error accessing transaction hash:", hashError);
+            if (isFarcaster) setTxDebugInfo(`❌ Hash access error: ${hashError.message}`);
+          }
+          
+          // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
+          console.log("🔵 About to wait for approval confirmation...");
+          if (isFarcaster) {
+            console.log("🔵 Using readProvider.waitForTransaction for Farcaster");
+            if (!approveTx.hash) {
+              throw new Error("Transaction hash is missing");
+            }
+            const receipt = await readProvider.waitForTransaction(approveTx.hash);
+            console.log("✅ USDC approved (via fallback provider), receipt:", receipt);
+          } else {
+            console.log("🔵 Using approveTx.wait() for desktop");
+            await approveTx.wait();
+            console.log("✅ USDC approved");
+          }
+          if (isFarcaster) setTxDebugInfo("✅ Approval confirmed!");
+        } catch (approvalError) {
+          console.error("❌ Approval or wait error:", approvalError);
+          console.error("❌ Error details:", {
+            message: approvalError.message,
+            code: approvalError.code,
+            data: approvalError.data,
+            stack: approvalError.stack
+          });
+          if (isFarcaster) setTxDebugInfo(`❌ Approval error: ${approvalError.message || approvalError.code}`);
+          throw approvalError; // Re-throw to be caught by outer catch
         }
-        if (isFarcaster) setTxDebugInfo("✅ Approval confirmed!");
       } else {
         console.log("🔵 Skipping approval - allowance already sufficient");
         if (isFarcaster) setTxDebugInfo("✅ Already approved");
