@@ -449,8 +449,7 @@ export const WalletProvider = ({ children }) => {
           vault: formattedVaultBalance 
         });
         
-        const isFarcasterEnv = typeof navigator !== 'undefined' && 
-          /Farcaster|Warpcast/i.test(navigator.userAgent);
+        // Use the isFarcasterEnv from the outer scope (don't redeclare)
         if (isFarcasterEnv) {
           setDebugInfo(`✅ USDC: ${formattedUsdc}, Vault: ${formattedVaultBalance}`);
         }
@@ -468,8 +467,7 @@ export const WalletProvider = ({ children }) => {
         };
       } catch (error) {
         console.error('❌ Balance fetch error:', error);
-        const isFarcasterEnv = typeof navigator !== 'undefined' && 
-          /Farcaster|Warpcast/i.test(navigator.userAgent);
+        // Use the isFarcasterEnv from the outer scope (don't redeclare)
         if (isFarcasterEnv) {
           setDebugInfo(`❌ Error: ${error.message || error.toString()}`);
         }
