@@ -344,10 +344,10 @@ export const WalletProvider = ({ children }) => {
         setDebugInfo(`fetchBalances: wallet=${walletAddress?.slice(0,8)}, provider=${!!provider}, chain=${chainId}`);
       }
       
-      if (!walletAddress || !provider) {
-        console.warn('⚠️ Balance fetch skipped - no wallet or provider', { walletAddress, hasProvider: !!provider });
+      if (!walletAddress) {
+        console.warn('⚠️ Balance fetch skipped - no wallet', { walletAddress });
         if (isFarcasterEnv) {
-          setDebugInfo(`❌ No wallet (${!!walletAddress}) or provider (${!!provider})`);
+          setDebugInfo(`❌ No wallet address`);
         }
         setIsBalancesLoading(false);
         setUsdcBalance("0");
@@ -388,19 +388,46 @@ export const WalletProvider = ({ children }) => {
       }
 
       try {
+        // FARCASTER FIX: Use fallback RPC provider for read operations
+        // Farcaster wallet provider doesn't support eth_call, so we use public RPC for reads
+        let readProvider = provider;
+        
+        // Test if provider supports eth_call (for Farcaster compatibility)
+        let needsFallback = false;
+        if (isFarcasterEnv) {
+          try {
+            // Try a simple call to test provider
+            await provider.getNetwork();
+          } catch (error) {
+            if (error.code === 4200 || error.message?.includes('does not support')) {
+              console.log('🔄 Farcaster provider needs fallback - using public RPC for reads');
+              needsFallback = true;
+            }
+          }
+        }
+        
+        // Create fallback provider if needed (public Base RPC for read-only operations)
+        if (needsFallback || !provider) {
+          console.log('🔄 Using fallback RPC provider for balance reads');
+          if (isFarcasterEnv) {
+            setDebugInfo(`🔄 Using fallback RPC...`);
+          }
+          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+        }
+
         const usdcContract = new ethers.Contract(
           USDC_ADDRESS,
           ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"],
-          provider
+          readProvider
         );
 
-        const vaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, provider);
+        const vaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, readProvider);
 
         const [usdcBal, usdcDecimals, vaultTokenBalance, network] = await Promise.all([
           usdcContract.balanceOf(walletAddress),
           usdcContract.decimals(),
           vaultContract.balanceOf(walletAddress),
-          provider.getNetwork(),
+          readProvider.getNetwork(),
         ]);
 
         if (network.chainId !== 8453) {
