@@ -247,8 +247,15 @@ const VaultApp = ({ onShowToast, mode }) => {
         console.log("🔵 Approve tx hash:", approveTx.hash);
         setTxHash(approveTx.hash);
         if (isFarcaster) setTxDebugInfo(`⏳ Approval sent: ${approveTx.hash.slice(0,10)}...`);
-        await approveTx.wait();
-        console.log("✅ USDC approved");
+        
+        // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
+        if (isFarcaster) {
+          const receipt = await readProvider.waitForTransaction(approveTx.hash);
+          console.log("✅ USDC approved (via fallback provider)");
+        } else {
+          await approveTx.wait();
+          console.log("✅ USDC approved");
+        }
         if (isFarcaster) setTxDebugInfo("✅ Approval confirmed!");
       } else {
         console.log("🔵 Skipping approval - allowance already sufficient");
@@ -358,8 +365,15 @@ const VaultApp = ({ onShowToast, mode }) => {
       if (isFarcaster) setTxDebugInfo(`⏳ Deposit sent: ${depositTx.hash.slice(0,10)}...`);
       setStatus("Waiting for confirmation...");
 
-      const receipt = await depositTx.wait();
-      console.log("✅ Deposit confirmed:", receipt.transactionHash);
+      // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
+      let receipt;
+      if (isFarcaster) {
+        receipt = await readProvider.waitForTransaction(depositTx.hash);
+        console.log("✅ Deposit confirmed (via fallback provider):", receipt.transactionHash);
+      } else {
+        receipt = await depositTx.wait();
+        console.log("✅ Deposit confirmed:", receipt.transactionHash);
+      }
       console.log("🔵 Receipt status:", receipt.status);
       console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
 
@@ -742,8 +756,15 @@ const VaultApp = ({ onShowToast, mode }) => {
       if (isFarcaster) setTxDebugInfo(`⏳ Withdrawal sent: ${withdrawTx.hash.slice(0,10)}...`);
       setStatus("Waiting for confirmation...");
 
-      const receipt = await withdrawTx.wait();
-      console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
+      // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
+      let receipt;
+      if (isFarcaster) {
+        receipt = await readProvider.waitForTransaction(withdrawTx.hash);
+        console.log("✅ Withdrawal confirmed (via fallback provider):", receipt.transactionHash);
+      } else {
+        receipt = await withdrawTx.wait();
+        console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
+      }
       console.log("🟠 Receipt status:", receipt.status);
       console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
       console.log("🟠 Transaction confirmation details:", {
