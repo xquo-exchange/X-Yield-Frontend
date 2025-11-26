@@ -390,39 +390,27 @@ export const WalletProvider = ({ children }) => {
       try {
         // FARCASTER FIX: Use fallback RPC provider for read operations
         // Farcaster wallet provider doesn't support eth_call, so we use public RPC for reads
-        let readProvider;
-        let needsFallback = false;
         
-        // Test if provider exists and supports eth_call (for Farcaster compatibility)
-        if (provider && isFarcasterEnv) {
-          try {
-            // Try a simple call to test provider
-            await provider.getNetwork();
-            readProvider = provider;
-          } catch (error) {
-            if (error.code === 4200 || error.message?.includes('does not support')) {
-              console.log('🔄 Farcaster provider needs fallback - using public RPC for reads');
-              needsFallback = true;
-            } else {
-              // Some other error, rethrow
-              throw error;
-            }
-          }
+        // Initialize readProvider - ALWAYS use fallback RPC in Farcaster for safety
+        let readProvider = null;
+        
+        if (isFarcasterEnv) {
+          // In Farcaster, always use public RPC for reading (Farcaster provider is unreliable)
+          console.log('🔄 Farcaster detected - using public RPC for balance reads');
+          setDebugInfo(`🔄 Using fallback RPC...`);
+          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
         } else if (provider) {
-          // Not Farcaster, use provider as-is
+          // Not Farcaster - use the wallet's provider normally
           readProvider = provider;
         } else {
-          // No provider at all, need fallback
-          needsFallback = true;
+          // No provider - use fallback
+          console.log('🔄 No provider - using fallback RPC for balance reads');
+          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
         }
         
-        // Create fallback provider if needed (public Base RPC for read-only operations)
-        if (needsFallback) {
-          console.log('🔄 Using fallback RPC provider for balance reads');
-          if (isFarcasterEnv) {
-            setDebugInfo(`🔄 Using fallback RPC...`);
-          }
-          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+        // Safety check - should never happen but just in case
+        if (!readProvider) {
+          throw new Error('Failed to initialize read provider');
         }
 
         const usdcContract = new ethers.Contract(
