@@ -757,7 +757,7 @@ const VaultApp = ({ onShowToast, mode }) => {
             textAlign: 'center'
           }}>
             <div style={{ marginBottom: '4px', fontSize: '10px', opacity: 0.7 }}>
-              🔧 Farcaster Debug (temporary)
+              🔧 Farcaster Debug (temporary 2)
             </div>
             <div>{debugInfo}</div>
             <div style={{ marginTop: '4px', fontSize: '9px', opacity: 0.5 }}>
