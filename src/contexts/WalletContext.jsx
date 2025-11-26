@@ -41,6 +41,7 @@ export const WalletProvider = ({ children }) => {
   const [usdcBalance, setUsdcBalance] = useState("0");
   const [vaultBalance, setVaultBalance] = useState("0");
   const [isBalancesLoading, setIsBalancesLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
   const walletType = "reown-appkit";
 
   const accountWatcherRef = useRef(null);
@@ -95,8 +96,11 @@ export const WalletProvider = ({ children }) => {
           setChainId(typeof currentChainId === "number" ? currentChainId : null);
         }
 
-        // Only save to localStorage on desktop, not on mobile
-        if (!isMobileDevice()) {
+        // Only save to localStorage on desktop OR Farcaster (not regular mobile)
+        const isFarcasterEnv = typeof navigator !== 'undefined' && 
+          /Farcaster|Warpcast/i.test(navigator.userAgent);
+          
+        if (!isMobileDevice() || isFarcasterEnv) {
           localStorage.setItem("walletConnected", "true");
         }
       } catch (error) {
@@ -128,8 +132,20 @@ export const WalletProvider = ({ children }) => {
       localStorage.setItem("appVersion", APP_VERSION);
     }
 
+    // 🔥 CRITICAL: Detect Farcaster - don't clear wallet state in Farcaster
+    const isFarcasterEnv = typeof navigator !== 'undefined' && 
+      /Farcaster|Warpcast/i.test(navigator.userAgent);
+    
+    console.log('🔍 Environment check:', {
+      isMobile: isMobileDevice(),
+      isFarcaster: isFarcasterEnv,
+      shouldClearWallet: isMobileDevice() && !isFarcasterEnv,
+      userAgent: navigator.userAgent
+    });
+
     // On mobile devices, clear wallet connection state and don't auto-reconnect
-    if (isMobileDevice()) {
+    // BUT: Skip this in Farcaster environment
+    if (isMobileDevice() && !isFarcasterEnv) {
       // Clear wallet connection flag
       localStorage.removeItem("walletConnected");
       
@@ -171,9 +187,10 @@ export const WalletProvider = ({ children }) => {
       };
     }
 
-    // Desktop behavior: auto-reconnect if account exists
+    // Desktop or Farcaster behavior: auto-reconnect if account exists
     const existingAccount = getAccount(wagmiConfig);
     if (existingAccount?.address) {
+      console.log('🟢 Auto-reconnecting existing account in Farcaster/Desktop:', existingAccount.address);
       initializeProvider(existingAccount);
     }
 
@@ -313,7 +330,25 @@ export const WalletProvider = ({ children }) => {
 
   const fetchBalances = useCallback(
     async (forceRefresh = false) => {
+      const isFarcasterEnv = typeof navigator !== 'undefined' && 
+        /Farcaster|Warpcast/i.test(navigator.userAgent);
+      
+      console.log('🔍 fetchBalances called:', { 
+        walletAddress, 
+        hasProvider: !!provider, 
+        chainId, 
+        forceRefresh 
+      });
+      
+      if (isFarcasterEnv) {
+        setDebugInfo(`fetchBalances: wallet=${walletAddress?.slice(0,8)}, provider=${!!provider}, chain=${chainId}`);
+      }
+      
       if (!walletAddress || !provider) {
+        console.warn('⚠️ Balance fetch skipped - no wallet or provider', { walletAddress, hasProvider: !!provider });
+        if (isFarcasterEnv) {
+          setDebugInfo(`❌ No wallet (${!!walletAddress}) or provider (${!!provider})`);
+        }
         setIsBalancesLoading(false);
         setUsdcBalance("0");
         setVaultBalance("0");
@@ -322,6 +357,10 @@ export const WalletProvider = ({ children }) => {
       }
 
       if (chainId !== 8453) {
+        console.warn('⚠️ Balance fetch skipped - wrong chainId:', chainId);
+        if (isFarcasterEnv) {
+          setDebugInfo(`❌ Wrong chain: ${chainId} (need 8453)`);
+        }
         setIsBalancesLoading(false);
         setUsdcBalance("0");
         setVaultBalance("0");
@@ -329,6 +368,10 @@ export const WalletProvider = ({ children }) => {
         return;
       }
 
+      console.log('✅ Fetching balances for', walletAddress, 'on chainId', chainId);
+      if (isFarcasterEnv) {
+        setDebugInfo(`⏳ Fetching balances...`);
+      }
       setIsBalancesLoading(true);
 
       const cache = balanceCacheRef.current;
@@ -376,6 +419,17 @@ export const WalletProvider = ({ children }) => {
           formattedVaultBalance = ethers.utils.formatUnits(assetsValue, 6);
         }
 
+        console.log('✅ Balances fetched successfully:', { 
+          usdc: formattedUsdc, 
+          vault: formattedVaultBalance 
+        });
+        
+        const isFarcasterEnv = typeof navigator !== 'undefined' && 
+          /Farcaster|Warpcast/i.test(navigator.userAgent);
+        if (isFarcasterEnv) {
+          setDebugInfo(`✅ USDC: ${formattedUsdc}, Vault: ${formattedVaultBalance}`);
+        }
+
         setUsdcBalance(formattedUsdc);
         setVaultBalance(formattedVaultBalance);
         setIsBalancesLoading(false);
@@ -388,6 +442,13 @@ export const WalletProvider = ({ children }) => {
           timestamp: Date.now(),
         };
       } catch (error) {
+        console.error('❌ Balance fetch error:', error);
+        const isFarcasterEnv = typeof navigator !== 'undefined' && 
+          /Farcaster|Warpcast/i.test(navigator.userAgent);
+        if (isFarcasterEnv) {
+          setDebugInfo(`❌ Error: ${error.message || error.toString()}`);
+        }
+        
         if (error.code === "NETWORK_ERROR" || error.message?.includes("underlying network changed")) {
           setIsBalancesLoading(false);
           return;
@@ -410,7 +471,11 @@ export const WalletProvider = ({ children }) => {
 
   useEffect(() => {
     // On mobile, disconnect wallet when page is about to unload/reload
-    if (isMobileDevice()) {
+    // BUT: Don't do this in Farcaster
+    const isFarcasterEnv = typeof navigator !== 'undefined' && 
+      /Farcaster|Warpcast/i.test(navigator.userAgent);
+    
+    if (isMobileDevice() && !isFarcasterEnv) {
       const handleBeforeUnload = () => {
         // Clear localStorage
         localStorage.removeItem("walletConnected");
@@ -528,6 +593,7 @@ export const WalletProvider = ({ children }) => {
     usdcBalance,
     vaultBalance,
     isBalancesLoading,
+    debugInfo,
     connectWallet,
     disconnectWallet,
     switchToBase,

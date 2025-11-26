@@ -42,8 +42,13 @@ const VaultApp = ({ onShowToast, mode }) => {
     vaultBalance,
     fetchBalances,
     invalidateBalanceCache,
-    isBalancesLoading
+    isBalancesLoading,
+    debugInfo
   } = useWallet();
+  
+  // Check if we're in Farcaster
+  const isFarcaster = typeof navigator !== 'undefined' && 
+    /Farcaster|Warpcast/i.test(navigator.userAgent);
   
   const [showWarning, setShowWarning] = useState(false);
   const [amount, setAmount] = useState("");
@@ -732,6 +737,35 @@ const VaultApp = ({ onShowToast, mode }) => {
   return (
     <>
       <div className="vault-container">
+        {/* Farcaster Debug Info */}
+        {isFarcaster && debugInfo && (
+          <div style={{
+            position: 'fixed',
+            top: '60px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.9)',
+            border: '1px solid rgba(16, 185, 129, 0.5)',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            color: '#10b981',
+            zIndex: 9999,
+            maxWidth: '90vw',
+            wordBreak: 'break-all',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '4px', fontSize: '10px', opacity: 0.7 }}>
+              🔧 Farcaster Debug (temporary)
+            </div>
+            <div>{debugInfo}</div>
+            <div style={{ marginTop: '4px', fontSize: '9px', opacity: 0.5 }}>
+              Connected: {isConnected ? '✅' : '❌'} | Chain: {chainId || 'none'} | Address: {account?.slice(0, 8) || 'none'}
+            </div>
+          </div>
+        )}
+        
         <div className="pool-detail-card">
           <h3 className="pool-title">X-QUO VAULT</h3>
           
