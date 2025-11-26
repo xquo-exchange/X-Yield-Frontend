@@ -245,7 +245,34 @@ const VaultApp = ({ onShowToast, mode }) => {
         if (isFarcaster) setTxDebugInfo("📝 Requesting approval signature...");
         
         try {
-          const approveTx = await usdcContractWrite.approve(VAULT_ADDRESS, approvalAmount);
+          // Estimate gas using readProvider (public RPC) first
+          let overrides = {};
+          if (isFarcaster) {
+            console.log("🔵 Estimating approval gas with readProvider...");
+            try {
+              // Manually estimate gas using the read provider
+              // We need to construct the transaction data manually since we can't use the write contract for estimation
+              const data = usdcContractWrite.interface.encodeFunctionData("approve", [VAULT_ADDRESS, approvalAmount]);
+              const estimatedGas = await readProvider.estimateGas({
+                to: USDC_ADDRESS,
+                from: account,
+                data: data,
+                value: 0
+              });
+              console.log("🔵 Estimated gas:", estimatedGas.toString());
+              
+              // Add buffer and set overrides
+              overrides = {
+                gasLimit: estimatedGas.mul(120).div(100)
+              };
+              console.log("🔵 Using overrides:", overrides);
+            } catch (estimateError) {
+              console.warn("⚠️ Gas estimation failed, using fallback:", estimateError);
+              overrides = { gasLimit: ethers.BigNumber.from("100000") }; // Safe default for approve
+            }
+          }
+
+          const approveTx = await usdcContractWrite.approve(VAULT_ADDRESS, approvalAmount, overrides);
           console.log("🔵 Approval transaction received");
           console.log("🔵 Transaction object type:", typeof approveTx);
           console.log("🔵 Transaction object keys:", Object.keys(approveTx || {}));
