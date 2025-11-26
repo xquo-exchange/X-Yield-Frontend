@@ -42,8 +42,7 @@ const VaultApp = ({ onShowToast, mode }) => {
     vaultBalance,
     fetchBalances,
     invalidateBalanceCache,
-    isBalancesLoading,
-    debugInfo
+    isBalancesLoading
   } = useWallet();
   
   // Check if we're in Farcaster
@@ -56,7 +55,6 @@ const VaultApp = ({ onShowToast, mode }) => {
   const [showStatus, setShowStatus] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState(null);
-  const [txDebugInfo, setTxDebugInfo] = useState("");
   
   // Fee configuration - conditional display
   const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
@@ -139,25 +137,18 @@ const VaultApp = ({ onShowToast, mode }) => {
     console.log("🔵 Input amount (string):", amount);
     console.log("🔵 Input amount (parsed float):", parseFloat(amount));
     
-    if (isFarcaster) {
-      setTxDebugInfo(`💰 Starting deposit: ${amount} USDC`);
-    }
-    
     if (!account || !walletProvider) {
       onShowToast?.("error", "Please connect your wallet");
-      if (isFarcaster) setTxDebugInfo("❌ No wallet/provider");
       return;
     }
 
     if (chainId !== 8453) {
       onShowToast?.("error", "Please switch to Base network");
-      if (isFarcaster) setTxDebugInfo(`❌ Wrong chain: ${chainId}`);
       return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
       onShowToast?.("error", "Please enter an amount to deposit");
-      if (isFarcaster) setTxDebugInfo("❌ No amount entered");
       return;
     }
 
@@ -166,7 +157,6 @@ const VaultApp = ({ onShowToast, mode }) => {
     setTxHash(null);
 
     try {
-      if (isFarcaster) setTxDebugInfo("🔄 Getting signer...");
       const signer = walletProvider.getSigner();
       
       // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
@@ -181,7 +171,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       let readProvider = walletProvider;
       if (isFarcaster) {
         console.log("🔄 Farcaster detected - using fallback RPC for reads");
-        setTxDebugInfo("🔄 Setting up providers...");
         readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
       }
 
@@ -205,7 +194,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         signer
       );
 
-      if (isFarcaster) setTxDebugInfo("🔄 Checking USDC balance...");
       const decimals = await usdcContractRead.decimals();
       console.log("🔵 USDC decimals:", decimals);
       
@@ -222,12 +210,10 @@ const VaultApp = ({ onShowToast, mode }) => {
       if (balance.lt(requiredAmount)) {
         const actualBalance = ethers.utils.formatUnits(balance, decimals);
         onShowToast?.("error", `You need ${amount} USDC but only have ${parseFloat(actualBalance).toFixed(2)} USDC.`);
-        if (isFarcaster) setTxDebugInfo(`❌ Insufficient USDC: need ${amount}, have ${parseFloat(actualBalance).toFixed(2)}`);
         setIsLoading(false);
         return;
       }
 
-      if (isFarcaster) setTxDebugInfo("✅ Balance OK, checking approval...");
       setStatus("Approving USDC...");
 
       // Step 1: Approve USDC for vault
@@ -242,7 +228,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       
       if (currentAllowance.lt(requiredAmount)) {
         console.log("🔵 Approving USDC...");
-        if (isFarcaster) setTxDebugInfo("📝 Requesting approval signature...");
         
         try {
           // Estimate gas using readProvider (public RPC) first
@@ -280,10 +265,8 @@ const VaultApp = ({ onShowToast, mode }) => {
           try {
             console.log("🔵 Trying to access tx.hash:", approveTx.hash);
             setTxHash(approveTx.hash);
-            if (isFarcaster) setTxDebugInfo(`⏳ Approval sent: ${approveTx.hash ? approveTx.hash.slice(0,10) : 'pending'}...`);
           } catch (hashError) {
             console.error("❌ Error accessing transaction hash:", hashError);
-            if (isFarcaster) setTxDebugInfo(`❌ Hash access error: ${hashError.message}`);
           }
           
           // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
@@ -300,7 +283,6 @@ const VaultApp = ({ onShowToast, mode }) => {
             await approveTx.wait();
             console.log("✅ USDC approved");
           }
-          if (isFarcaster) setTxDebugInfo("✅ Approval confirmed!");
         } catch (approvalError) {
           console.error("❌ Approval or wait error:", approvalError);
           console.error("❌ Error details:", {
@@ -309,16 +291,13 @@ const VaultApp = ({ onShowToast, mode }) => {
             data: approvalError.data,
             stack: approvalError.stack
           });
-          if (isFarcaster) setTxDebugInfo(`❌ Approval error: ${approvalError.message || approvalError.code}`);
           throw approvalError; // Re-throw to be caught by outer catch
         }
       } else {
         console.log("🔵 Skipping approval - allowance already sufficient");
-        if (isFarcaster) setTxDebugInfo("✅ Already approved");
       }
 
       // Step 2: Deposit to vault
-      if (isFarcaster) setTxDebugInfo("🔄 Preparing deposit transaction...");
       setStatus("Depositing to vault...");
       
       // Vault contract for WRITE operations (deposit)
@@ -405,7 +384,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       }
 
       console.log("🔵 Sending deposit transaction...");
-      if (isFarcaster) setTxDebugInfo("📝 Requesting deposit signature...");
       
       let depositOverrides = {};
       if (isFarcaster) {
@@ -443,7 +421,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       });
       
       setTxHash(depositTx.hash);
-      if (isFarcaster) setTxDebugInfo(`⏳ Deposit sent: ${depositTx.hash.slice(0,10)}...`);
       setStatus("Waiting for confirmation...");
 
       // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
@@ -459,7 +436,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
 
       // Step 3: Refresh balances
-      if (isFarcaster) setTxDebugInfo("✅ Deposit confirmed! Refreshing...");
       setStatus("Updating balances...");
       setShowStatus(false);
       onShowToast?.("success", `Successfully deposited ${amount} USDC!`, receipt.transactionHash);
@@ -475,7 +451,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       invalidateBalanceCache();
       await fetchBalances(true); // Force refresh after transaction
       setAmount(""); // Clear input
-      if (isFarcaster) setTxDebugInfo("✅ Complete! Balances updated");
       
       console.log("🔵 ========== DEPOSIT SUCCESS ==========");
 
@@ -487,7 +462,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.error("❌ Error data:", error.data);
       
       if (isFarcaster) {
-        setTxDebugInfo(`❌ Deposit failed: ${error.message || error.code || 'Unknown error'}`);
       }
       
       if (error.receipt) {
@@ -596,24 +570,20 @@ const VaultApp = ({ onShowToast, mode }) => {
     console.log("🟠 Input amount (parsed float):", parseFloat(amount));
     
     if (isFarcaster) {
-      setTxDebugInfo(`💸 Starting withdrawal: ${amount} USDC`);
     }
     
     if (!account || !walletProvider) {
       onShowToast?.("error", "Please connect your wallet");
-      if (isFarcaster) setTxDebugInfo("❌ No wallet/provider");
       return;
     }
 
     if (chainId !== 8453) {
       onShowToast?.("error", "Please switch to Base network");
-      if (isFarcaster) setTxDebugInfo(`❌ Wrong chain: ${chainId}`);
       return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
       onShowToast?.("error", "Please enter an amount to withdraw");
-      if (isFarcaster) setTxDebugInfo("❌ No amount entered");
       return;
     }
 
@@ -622,7 +592,6 @@ const VaultApp = ({ onShowToast, mode }) => {
     setTxHash(null);
 
     try {
-      if (isFarcaster) setTxDebugInfo("🔄 Getting signer...");
       const signer = walletProvider.getSigner();
       
       // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
@@ -637,7 +606,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       let readProvider = walletProvider;
       if (isFarcaster) {
         console.log("🔄 Farcaster detected - using fallback RPC for reads");
-        setTxDebugInfo("🔄 Setting up providers...");
         readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
       }
 
@@ -657,7 +625,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       );
 
       // Get vault token decimals and user's balance (READ operations)
-      if (isFarcaster) setTxDebugInfo("🔄 Checking vault balance...");
       const vaultDecimals = await vaultContractRead.decimals();
       console.log("🟠 Vault decimals:", vaultDecimals);
       
@@ -707,12 +674,10 @@ const VaultApp = ({ onShowToast, mode }) => {
         const maxUsdc = ethers.utils.formatUnits(maxWithdrawableAssets, 6);
         console.warn("🟠 Insufficient balance - max withdrawable:", maxUsdc);
         onShowToast?.("error", `Insufficient vault balance. Maximum: ${parseFloat(maxUsdc).toFixed(2)} USDC`);
-        if (isFarcaster) setTxDebugInfo(`❌ Insufficient vault: need ${amount}, have ${parseFloat(maxUsdc).toFixed(2)}`);
         setIsLoading(false);
         return;
       }
 
-      if (isFarcaster) setTxDebugInfo("✅ Balance OK, preparing withdrawal...");
       setStatus("Withdrawing from vault...");
 
       console.log("🟠 Vault address:", VAULT_ADDRESS);
@@ -730,7 +695,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       const minGasRequired = ethers.utils.parseEther("0.0001");
       if (ethBalance.lt(minGasRequired)) {
         onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
-        if (isFarcaster) setTxDebugInfo("❌ Insufficient ETH for gas");
         setIsLoading(false);
         return;
       }
@@ -820,13 +784,11 @@ const VaultApp = ({ onShowToast, mode }) => {
       
       if (ethBalance.lt(maxGasCost)) {
         onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.utils.formatEther(maxGasCost)} ETH but have ${ethers.utils.formatEther(ethBalance)} ETH.`);
-        if (isFarcaster) setTxDebugInfo("❌ Insufficient ETH for gas cost");
         setIsLoading(false);
         return;
       }
 
       console.log("🟠 Sending withdrawal transaction...");
-      if (isFarcaster) setTxDebugInfo("📝 Requesting withdrawal signature...");
       console.log("🟠 Final transaction summary:", {
         amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
         receiver: account,
@@ -851,7 +813,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       });
       
       setTxHash(withdrawTx.hash);
-      if (isFarcaster) setTxDebugInfo(`⏳ Withdrawal sent: ${withdrawTx.hash.slice(0,10)}...`);
       setStatus("Waiting for confirmation...");
 
       // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
@@ -873,7 +834,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         status: receipt.status === 1 ? 'Success' : 'Failed'
       });
 
-      if (isFarcaster) setTxDebugInfo("✅ Withdrawal confirmed! Refreshing...");
       setStatus("Updating balances...");
       setShowStatus(false);
       onShowToast?.("success", `Successfully withdrew ${amount} USDC!`, receipt.transactionHash);
@@ -889,7 +849,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       invalidateBalanceCache();
       await fetchBalances(true); // Force refresh after transaction
       setAmount(""); // Clear input
-      if (isFarcaster) setTxDebugInfo("✅ Complete! Balances updated");
       
       console.log("🟠 ========== WITHDRAWAL SUCCESS ==========");
 
@@ -901,7 +860,6 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.error("❌ Error data:", error.data);
       
       if (isFarcaster) {
-        setTxDebugInfo(`❌ Withdrawal failed: ${error.message || error.code || 'Unknown error'}`);
       }
       
       if (error.receipt) {
@@ -969,40 +927,6 @@ const VaultApp = ({ onShowToast, mode }) => {
   return (
     <>
       <div className="vault-container">
-        {/* Farcaster Debug Info */}
-        {isFarcaster && (debugInfo || txDebugInfo) && (
-          <div style={{
-            position: 'fixed',
-            top: '60px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(0, 0, 0, 0.9)',
-            border: '1px solid rgba(16, 185, 129, 0.5)',
-            padding: '8px 16px',
-            borderRadius: '8px',
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            color: '#10b981',
-            zIndex: 9999,
-            maxWidth: '90vw',
-            wordBreak: 'break-all',
-            textAlign: 'center'
-          }}>
-            <div style={{ marginBottom: '4px', fontSize: '10px', opacity: 0.7 }}>
-              🔧 Farcaster Debug
-            </div>
-            {txDebugInfo && (
-              <div style={{ marginBottom: '4px', color: '#f59e0b', fontWeight: 'bold' }}>
-                TX: {txDebugInfo}
-              </div>
-            )}
-            {debugInfo && <div>Balance: {debugInfo}</div>}
-            <div style={{ marginTop: '4px', fontSize: '9px', opacity: 0.5 }}>
-              Connected: {isConnected ? '✅' : '❌'} | Chain: {chainId || 'none'} | Address: {account?.slice(0, 8) || 'none'}
-            </div>
-          </div>
-        )}
-        
         <div className="pool-detail-card">
           <h3 className="pool-title">X-QUO VAULT</h3>
           

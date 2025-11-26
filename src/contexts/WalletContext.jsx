@@ -41,7 +41,6 @@ export const WalletProvider = ({ children }) => {
   const [usdcBalance, setUsdcBalance] = useState("0");
   const [vaultBalance, setVaultBalance] = useState("0");
   const [isBalancesLoading, setIsBalancesLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
   const walletType = "reown-appkit";
 
   const accountWatcherRef = useRef(null);
@@ -340,15 +339,9 @@ export const WalletProvider = ({ children }) => {
         forceRefresh 
       });
       
-      if (isFarcasterEnv) {
-        setDebugInfo(`fetchBalances: wallet=${walletAddress?.slice(0,8)}, provider=${!!provider}, chain=${chainId}`);
-      }
       
       if (!walletAddress) {
         console.warn('⚠️ Balance fetch skipped - no wallet', { walletAddress });
-        if (isFarcasterEnv) {
-          setDebugInfo(`❌ No wallet address`);
-        }
         setIsBalancesLoading(false);
         setUsdcBalance("0");
         setVaultBalance("0");
@@ -358,9 +351,6 @@ export const WalletProvider = ({ children }) => {
 
       if (chainId !== 8453) {
         console.warn('⚠️ Balance fetch skipped - wrong chainId:', chainId);
-        if (isFarcasterEnv) {
-          setDebugInfo(`❌ Wrong chain: ${chainId} (need 8453)`);
-        }
         setIsBalancesLoading(false);
         setUsdcBalance("0");
         setVaultBalance("0");
@@ -369,9 +359,6 @@ export const WalletProvider = ({ children }) => {
       }
 
       console.log('✅ Fetching balances for', walletAddress, 'on chainId', chainId);
-      if (isFarcasterEnv) {
-        setDebugInfo(`⏳ Fetching balances...`);
-      }
       setIsBalancesLoading(true);
 
       const cache = balanceCacheRef.current;
@@ -397,7 +384,6 @@ export const WalletProvider = ({ children }) => {
         if (isFarcasterEnv) {
           // In Farcaster, always use public RPC for reading (Farcaster provider is unreliable)
           console.log('🔄 Farcaster detected - using public RPC for balance reads');
-          setDebugInfo(`🔄 Using fallback RPC...`);
           readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
         } else if (provider) {
           // Not Farcaster - use the wallet's provider normally
@@ -449,10 +435,6 @@ export const WalletProvider = ({ children }) => {
           vault: formattedVaultBalance 
         });
         
-        // Use the isFarcasterEnv from the outer scope (don't redeclare)
-        if (isFarcasterEnv) {
-          setDebugInfo(`✅ USDC: ${formattedUsdc}, Vault: ${formattedVaultBalance}`);
-        }
 
         setUsdcBalance(formattedUsdc);
         setVaultBalance(formattedVaultBalance);
@@ -467,10 +449,6 @@ export const WalletProvider = ({ children }) => {
         };
       } catch (error) {
         console.error('❌ Balance fetch error:', error);
-        // Use the isFarcasterEnv from the outer scope (don't redeclare)
-        if (isFarcasterEnv) {
-          setDebugInfo(`❌ Error: ${error.message || error.toString()}`);
-        }
         
         if (error.code === "NETWORK_ERROR" || error.message?.includes("underlying network changed")) {
           setIsBalancesLoading(false);
@@ -616,7 +594,6 @@ export const WalletProvider = ({ children }) => {
     usdcBalance,
     vaultBalance,
     isBalancesLoading,
-    debugInfo,
     connectWallet,
     disconnectWallet,
     switchToBase,
