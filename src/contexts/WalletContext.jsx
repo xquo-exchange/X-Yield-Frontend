@@ -1,3 +1,5 @@
+// WalletContext.jsx
+
 import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import {
