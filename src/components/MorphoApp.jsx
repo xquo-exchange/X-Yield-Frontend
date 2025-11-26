@@ -406,7 +406,33 @@ const VaultApp = ({ onShowToast, mode }) => {
 
       console.log("🔵 Sending deposit transaction...");
       if (isFarcaster) setTxDebugInfo("📝 Requesting deposit signature...");
-      const depositTx = await vaultContractWrite.deposit(requiredAmount, account);
+      
+      let depositOverrides = {};
+      if (isFarcaster) {
+        console.log("🔵 Estimating deposit gas with readProvider...");
+        try {
+          // Manually estimate gas using the read provider for deposit
+          const data = vaultContractWrite.interface.encodeFunctionData("deposit", [requiredAmount, account]);
+          const estimatedGas = await readProvider.estimateGas({
+            to: VAULT_ADDRESS,
+            from: account,
+            data: data,
+            value: 0
+          });
+          console.log("🔵 Estimated gas for deposit:", estimatedGas.toString());
+          
+          // Add buffer and set overrides
+          depositOverrides = {
+            gasLimit: estimatedGas.mul(120).div(100)
+          };
+          console.log("🔵 Using deposit overrides:", depositOverrides);
+        } catch (estimateError) {
+          console.warn("⚠️ Gas estimation failed for deposit, using fallback:", estimateError);
+          depositOverrides = { gasLimit: ethers.BigNumber.from("500000") }; // Safe default for ERC4626 deposit
+        }
+      }
+
+      const depositTx = await vaultContractWrite.deposit(requiredAmount, account, depositOverrides);
       console.log("🔵 Deposit tx hash:", depositTx.hash);
       console.log("🔵 Deposit tx:", {
         to: depositTx.to,
@@ -767,9 +793,23 @@ const VaultApp = ({ onShowToast, mode }) => {
           console.warn("🟠 ⚠️ Proceeding with fallback gas limit - transaction may still succeed");
         }
       } else {
-        // Farcaster: Skip simulation and use fallback gas limit
-        console.log("🟠 Skipping simulation/gas estimation in Farcaster - using fallback");
-        gasLimit = ethers.BigNumber.from("400000");
+        // Farcaster: Skip simulation and use fallback gas limit or manual estimation
+        console.log("🟠 Skipping simulation in Farcaster");
+        try {
+          console.log("🟠 Estimating withdrawal gas with readProvider...");
+          const data = vaultContractWrite.interface.encodeFunctionData("withdraw", [usdcAmount, account, account]);
+          const estimatedGas = await readProvider.estimateGas({
+            to: VAULT_ADDRESS,
+            from: account,
+            data: data,
+            value: 0
+          });
+          console.log("🟠 Estimated gas for withdrawal:", estimatedGas.toString());
+          gasLimit = estimatedGas.mul(120).div(100);
+        } catch (err) {
+          console.warn("⚠️ Gas estimation failed for withdrawal, using fallback:", err);
+          gasLimit = ethers.BigNumber.from("500000");
+        }
       }
 
       // Verify we have enough ETH for the gas (READ operation)
@@ -794,9 +834,12 @@ const VaultApp = ({ onShowToast, mode }) => {
         gasLimit: gasLimit.toString(),
         vaultAddress: VAULT_ADDRESS
       });
-      const withdrawTx = await vaultContractWrite.withdraw(usdcAmount, account, account, {
+      
+      let withdrawOverrides = {
         gasLimit: gasLimit // Always specify gas limit explicitly
-      });
+      };
+      
+      const withdrawTx = await vaultContractWrite.withdraw(usdcAmount, account, account, withdrawOverrides);
       console.log("🟠 ✅ Withdraw tx hash:", withdrawTx.hash);
       console.log("🟠 ✅ Withdraw tx:", {
         to: withdrawTx.to,
