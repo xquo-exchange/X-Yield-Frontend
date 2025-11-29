@@ -56,11 +56,11 @@
   }
 
   .social-links--app {
-    padding: 28px 0 32px;
+    padding: 0 0 48px;
   }
 
   .social-links--landing {
-    bottom: 24px;
+    bottom: 48px;
     width: calc(100% - 32px);
   }
 
@@ -69,4 +69,3 @@
     height: 40px;
   }
 }
-
