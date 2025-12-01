@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
-import { ethers } from "ethers";
+import { ethers, toBeHex } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 import { computeAPY } from "../utils/calculateYield"
 import PoweredByMorpho from "./PoweredByMorpho";
+import { PrepareTransactionSignature } from "../utils/prepareTransactionSignature"
+import { reconnectMutationOptions } from "wagmi/query";
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
+const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+
+const BACKEND_BASE_URL = "http://localhost:3000"
 
 // ERC-4626 Vault ABI (only the functions we need)
 const VAULT_ABI = [
@@ -31,6 +36,8 @@ const VAULT_ABI = [
   "function previewWithdraw(uint256 assets) view returns (uint256 shares)",
   "function maxWithdraw(address owner) view returns (uint256)" // Maximum withdrawable assets
 ];
+
+
 
 const VaultApp = ({ onShowToast, mode }) => {
   const {
@@ -158,7 +165,7 @@ const VaultApp = ({ onShowToast, mode }) => {
     setTxHash(null);
 
     try {
-      const signer = walletProvider.getSigner();
+      const signer = await walletProvider.getSigner();
 
       // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
       // We already have the account address from wallet context
@@ -200,16 +207,16 @@ const VaultApp = ({ onShowToast, mode }) => {
 
       const balance = await usdcContractRead.balanceOf(account);
       console.log("🔵 USDC balance (raw):", balance.toString());
-      console.log("🔵 USDC balance (formatted):", ethers.utils.formatUnits(balance, decimals));
+      console.log("🔵 USDC balance (formatted):", ethers.formatUnits(balance, decimals));
 
-      const requiredAmount = ethers.utils.parseUnits(amount, decimals);
+      const requiredAmount = ethers.parseUnits(amount, decimals);
       console.log("🔵 Required amount (raw BigNumber):", requiredAmount.toString());
-      console.log("🔵 Required amount (formatted check):", ethers.utils.formatUnits(requiredAmount, decimals));
+      console.log("🔵 Required amount (formatted check):", ethers.formatUnits(requiredAmount, decimals));
       console.log("🔵 Required amount string length:", requiredAmount.toString().length);
-      console.log("🔵 Required amount hex:", requiredAmount.toHexString());
+      console.log("🔵 Required amount hex:", toBeHex(requiredAmount));
 
-      if (balance.lt(requiredAmount)) {
-        const actualBalance = ethers.utils.formatUnits(balance, decimals);
+      if (balance < requiredAmount) {
+        const actualBalance = ethers.formatUnits(balance, decimals);
         onShowToast?.("error", `You need ${amount} USDC but only have ${parseFloat(actualBalance).toFixed(2)} USDC.`);
         setIsLoading(false);
         return;
@@ -218,16 +225,16 @@ const VaultApp = ({ onShowToast, mode }) => {
       setStatus("Approving USDC...");
 
       // Step 1: Approve USDC for vault
-      const approvalAmount = requiredAmount; // Approve exact amount only
-      console.log("🔵 Approval amount (exact):", approvalAmount.toString());
+      const approvalAmount = ethers.MaxUint256; // Approve max for gas efficiency
+      console.log("🔵 Approval amount (MaxUint256):", approvalAmount.toString());
 
       // Check current allowance first (READ operation)
-      const currentAllowance = await usdcContractRead.allowance(account, VAULT_ADDRESS);
+      const currentAllowance = await usdcContractRead.allowance(account, PERMIT2_ADDRESS);
       console.log("🔵 Current allowance (raw):", currentAllowance.toString());
-      console.log("🔵 Current allowance (formatted):", ethers.utils.formatUnits(currentAllowance, decimals));
-      console.log("🔵 Allowance sufficient?", currentAllowance.gte(requiredAmount));
+      console.log("🔵 Current allowance (formatted):", ethers.formatUnits(currentAllowance, decimals));
+      console.log("🔵 Allowance sufficient?", currentAllowance >= requiredAmount);
 
-      if (currentAllowance.lt(requiredAmount)) {
+      if (currentAllowance < requiredAmount) {
         console.log("🔵 Approving USDC...");
 
         try {
@@ -238,7 +245,7 @@ const VaultApp = ({ onShowToast, mode }) => {
             try {
               // Manually estimate gas using the read provider
               // We need to construct the transaction data manually since we can't use the write contract for estimation
-              const data = usdcContractWrite.interface.encodeFunctionData("approve", [VAULT_ADDRESS, approvalAmount]);
+              const data = usdcContractWrite.interface.encodeFunctionData("approve", [PERMIT2_ADDRESS, approvalAmount]);
               const estimatedGas = await readProvider.estimateGas({
                 to: USDC_ADDRESS,
                 from: account,
@@ -258,7 +265,7 @@ const VaultApp = ({ onShowToast, mode }) => {
             }
           }
 
-          const approveTx = await usdcContractWrite.approve(VAULT_ADDRESS, approvalAmount, overrides);
+          const approveTx = await usdcContractWrite.approve(PERMIT2_ADDRESS, approvalAmount, overrides);
           console.log("🔵 Approval transaction received");
           console.log("🔵 Transaction object type:", typeof approveTx);
           console.log("🔵 Transaction object keys:", Object.keys(approveTx || {}));
@@ -301,140 +308,49 @@ const VaultApp = ({ onShowToast, mode }) => {
       // Step 2: Deposit to vault
       setStatus("Depositing to vault...");
 
-      // Vault contract for WRITE operations (deposit)
-      const vaultContractWrite = new ethers.Contract(
-        VAULT_ADDRESS,
-        VAULT_ABI,
-        signer
+      const txData = await PrepareTransactionSignature(signer, account, requiredAmount);
+      const payload = {
+        params: {
+          owner: account, 
+          details: {
+            token: USDC_ADDRESS,
+            amount: ethers.formatUnits(requiredAmount, decimals), 
+            decimal: Number(decimals),
+            expiration: txData.expiration,
+            nonce: txData.nonce
+          },
+          sigDeadline: txData.deadline,
+          signature: txData.signature,
+        }
+      };
+      const response = await fetch(
+        `${BACKEND_BASE_URL}/wallets/deposits`, 
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
       );
-
-      // Vault contract for READ operations (in Farcaster, use fallback)
-      const vaultContractRead = new ethers.Contract(
-        VAULT_ADDRESS,
-        VAULT_ABI,
-        isFarcaster ? readProvider : walletProvider
-      );
-
-      console.log("🔵 Vault address:", VAULT_ADDRESS);
-      console.log("🔵 Deposit params:");
-      console.log("  - assets (requiredAmount):", requiredAmount.toString());
-      console.log("  - receiver (account):", account);
-
-      // Skip gas estimation and simulation in Farcaster (they use eth_call which fails)
-      if (!isFarcaster) {
-        // Try to estimate gas first
-        try {
-          const estimatedGas = await vaultContractWrite.estimateGas.deposit(requiredAmount, account);
-          console.log("🔵 Estimated gas:", estimatedGas.toString());
-        } catch (gasError) {
-          console.warn("🔵 Gas estimation failed:", gasError.message);
-        }
-
-        // Try to simulate the call
-        try {
-          const result = await vaultContractWrite.callStatic.deposit(requiredAmount, account);
-          console.log("🔵 Simulated deposit result (shares):", result.toString());
-        } catch (simError) {
-          console.error("🔵 Static call simulation failed:", simError);
-          console.error("🔵 Simulation error message:", simError.message);
-          console.error("🔵 Simulation error data:", simError.data);
-          if (simError.data && typeof simError.data === 'string' && simError.data.length >= 138) {
-            try {
-              // Try to decode revert reason
-              const reason = ethers.utils.toUtf8String("0x" + simError.data.slice(138));
-              console.error("🔵 Revert reason:", reason);
-            } catch (e) {
-              console.error("🔵 Could not decode revert reason");
-            }
-          }
-        }
-      } else {
-        console.log("🔵 Skipping gas estimation/simulation in Farcaster");
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error)
       }
+      const txHash = data.txHash
+      console.log("🔵 Deposit tx hash:", txHash);
 
-      // Double-check USDC balance right before deposit (READ operation)
-      const balanceBeforeDeposit = await usdcContractRead.balanceOf(account);
-      console.log("🔵 USDC balance right before deposit:", balanceBeforeDeposit.toString());
-      console.log("🔵 Balance >= required?", balanceBeforeDeposit.gte(requiredAmount));
-
-      // Verify allowance one more time (READ operation)
-      const finalAllowance = await usdcContractRead.allowance(account, VAULT_ADDRESS);
-      console.log("🔵 Final allowance check:", finalAllowance.toString());
-      console.log("🔵 Allowance >= required?", finalAllowance.gte(requiredAmount));
-
-      // Check vault state before deposit (READ operations)
-      try {
-        const totalAssets = await vaultContractRead.totalAssets();
-        console.log("🔵 Vault totalAssets:", totalAssets.toString());
-        const assetAddress = await vaultContractRead.asset();
-        console.log("🔵 Vault asset address:", assetAddress);
-        console.log("🔵 Asset matches USDC?", assetAddress.toLowerCase() === USDC_ADDRESS.toLowerCase());
-      } catch (vaultCheckError) {
-        console.warn("🔵 Could not check vault state:", vaultCheckError.message);
-      }
-
-      // Try to preview the deposit to see what shares we'd get (READ operation)
-      try {
-        const previewShares = await vaultContractRead.previewDeposit(requiredAmount);
-        console.log("🔵 Preview shares (previewDeposit):", previewShares.toString());
-        if (previewShares.isZero()) {
-          console.warn("🔵 ⚠️ WARNING: previewDeposit returns 0 shares! This might cause the transaction to revert.");
-        }
-      } catch (previewError) {
-        console.warn("🔵 Could not preview deposit (function may not exist):", previewError.message);
-      }
-
-      console.log("🔵 Sending deposit transaction...");
-
-      let depositOverrides = {};
-      if (isFarcaster) {
-        console.log("🔵 Estimating deposit gas with readProvider...");
-        try {
-          // Manually estimate gas using the read provider for deposit
-          const data = vaultContractWrite.interface.encodeFunctionData("deposit", [requiredAmount, account]);
-          const estimatedGas = await readProvider.estimateGas({
-            to: VAULT_ADDRESS,
-            from: account,
-            data: data,
-            value: 0
-          });
-          console.log("🔵 Estimated gas for deposit:", estimatedGas.toString());
-
-          // Add buffer and set overrides
-          depositOverrides = {
-            gasLimit: estimatedGas.mul(120).div(100)
-          };
-          console.log("🔵 Using deposit overrides:", depositOverrides);
-        } catch (estimateError) {
-          console.warn("⚠️ Gas estimation failed for deposit, using fallback:", estimateError);
-          depositOverrides = { gasLimit: ethers.BigNumber.from("500000") }; // Safe default for ERC4626 deposit
-        }
-      }
-
-      const depositTx = await vaultContractWrite.deposit(requiredAmount, account, depositOverrides);
-      console.log("🔵 Deposit tx hash:", depositTx.hash);
-      console.log("🔵 Deposit tx:", {
-        to: depositTx.to,
-        from: depositTx.from,
-        data: depositTx.data,
-        value: depositTx.value?.toString(),
-        gasLimit: depositTx.gasLimit?.toString(),
-      });
-
-      setTxHash(depositTx.hash);
+      setTxHash(txHash);
       setStatus("Waiting for confirmation...");
 
       // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
-      let receipt;
-      if (isFarcaster) {
-        receipt = await readProvider.waitForTransaction(depositTx.hash);
-        console.log("✅ Deposit confirmed (via fallback provider):", receipt.transactionHash);
-      } else {
-        receipt = await depositTx.wait();
-        console.log("✅ Deposit confirmed:", receipt.transactionHash);
-      }
+      const receipt = await readProvider.waitForTransaction(txHash);
       console.log("🔵 Receipt status:", receipt.status);
-      console.log("🔵 Receipt gas used:", receipt.gasUsed.toString());
+      if (receipt.status == 0) {
+        throw new Error("Something went wrong")
+      } 
+
+      console.log("✅ Deposit confirmed (via fallback provider):", receipt.transactionHash);
 
       // Step 3: Refresh balances
       setStatus("Updating balances...");
@@ -489,7 +405,7 @@ const VaultApp = ({ onShowToast, mode }) => {
           // Standard revert reason format: 0x08c379a0 (Error(string)) + offset + length + reason
           if (error.data.startsWith('0x08c379a0') && error.data.length >= 138) {
             try {
-              const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + error.data.slice(138));
+              const reason = ethers.AbiCoder.defaultAbiCoder().decode(['string'], '0x' + error.data.slice(138));
               console.error("❌ Decoded revert reason:", reason[0]);
             } catch (decodeErr) {
               console.error("❌ Could not decode ABI-encoded revert reason:", decodeErr.message);
@@ -497,7 +413,7 @@ const VaultApp = ({ onShowToast, mode }) => {
           } else if (error.data.length >= 138) {
             // Try to decode as UTF-8 string
             try {
-              const reason = ethers.utils.toUtf8String('0x' + error.data.slice(138));
+              const reason = ethers.toUtf8String('0x' + error.data.slice(138));
               if (reason && reason.trim().length > 0) {
                 console.error("❌ Revert reason (UTF-8):", reason);
               }
@@ -533,7 +449,7 @@ const VaultApp = ({ onShowToast, mode }) => {
                 try {
                   if (callError.data && typeof callError.data === 'string' &&
                     callError.data.startsWith('0x08c379a0') && callError.data.length >= 138) {
-                    const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + callError.data.slice(138));
+                    const reason = ethers.AbiCoder.defaultAbiCoder().decode(['string'], '0x' + error.data.slice(138));
                     console.error("❌ Call error decoded reason:", reason[0]);
                   }
                 } catch (e) {
@@ -635,13 +551,13 @@ const VaultApp = ({ onShowToast, mode }) => {
       // Get asset value of current vault balance (READ operation)
       const currentAssetsValue = await vaultContractRead.convertToAssets(userVaultBalance);
       console.log("🟠 Current assets value (raw):", currentAssetsValue.toString());
-      console.log("🟠 Current assets value (formatted):", ethers.utils.formatUnits(currentAssetsValue, 6));
+      console.log("🟠 Current assets value (formatted):", ethers.formatUnits(currentAssetsValue, 6));
 
       // User enters amount in USDC terms, we need to convert to vault shares if needed
       // Using withdraw() function which takes assets (USDC) amount directly
-      let usdcAmount = ethers.utils.parseUnits(amount, 6); // USDC has 6 decimals
+      let usdcAmount = ethers.parseUnits(amount, 6); // USDC has 6 decimals
       console.log("🟠 USDC amount (raw BigNumber):", usdcAmount.toString());
-      console.log("🟠 USDC amount (formatted check):", ethers.utils.formatUnits(usdcAmount, 6));
+      console.log("🟠 USDC amount (formatted check):", ethers.formatUnits(usdcAmount, 6));
       console.log("🟠 USDC amount string length:", usdcAmount.toString().length);
       console.log("🟠 USDC amount hex:", usdcAmount.toHexString());
 
@@ -649,13 +565,13 @@ const VaultApp = ({ onShowToast, mode }) => {
       // This accounts for ERC-4626 rounding and prevents 0x4323a555 errors (READ operation)
       const maxWithdrawable = await vaultContractRead.maxWithdraw(account);
       console.log("🟠 Max withdrawable (from vault):", maxWithdrawable.toString());
-      console.log("🟠 Max withdrawable (formatted):", ethers.utils.formatUnits(maxWithdrawable, 6));
+      console.log("🟠 Max withdrawable (formatted):", ethers.formatUnits(maxWithdrawable, 6));
 
       // Cap the withdrawal amount to maxWithdrawable if it exceeds it
       if (usdcAmount.gt(maxWithdrawable)) {
         console.warn("🟠 ⚠️ Requested amount exceeds maxWithdrawable, capping to max");
         usdcAmount = maxWithdrawable;
-        const cappedAmountFormatted = ethers.utils.formatUnits(maxWithdrawable, 6);
+        const cappedAmountFormatted = ethers.formatUnits(maxWithdrawable, 6);
         console.log("🟠 Capped withdrawal amount:", cappedAmountFormatted);
       }
 
@@ -672,7 +588,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       if (userVaultBalance.lt(requiredShares)) {
         // Calculate max withdrawable (READ operation)
         const maxWithdrawableAssets = await vaultContractRead.convertToAssets(userVaultBalance);
-        const maxUsdc = ethers.utils.formatUnits(maxWithdrawableAssets, 6);
+        const maxUsdc = ethers.formatUnits(maxWithdrawableAssets, 6);
         console.warn("🟠 Insufficient balance - max withdrawable:", maxUsdc);
         onShowToast?.("error", `Insufficient vault balance. Maximum: ${parseFloat(maxUsdc).toFixed(2)} USDC`);
         setIsLoading(false);
@@ -690,10 +606,10 @@ const VaultApp = ({ onShowToast, mode }) => {
       // Check ETH balance for gas first (READ operation)
       const ethBalance = await readProvider.getBalance(account);
       console.log("🟠 ETH balance (raw):", ethBalance.toString());
-      console.log("🟠 ETH balance (formatted):", ethers.utils.formatEther(ethBalance));
+      console.log("🟠 ETH balance (formatted):", ethers.formatEther(ethBalance));
 
       // Minimum gas required (rough estimate: 0.0001 ETH should be enough for most transactions)
-      const minGasRequired = ethers.utils.parseEther("0.0001");
+      const minGasRequired = ethers.parseEther("0.0001");
       if (ethBalance.lt(minGasRequired)) {
         onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
         setIsLoading(false);
@@ -724,7 +640,7 @@ const VaultApp = ({ onShowToast, mode }) => {
             } else if (errorData.startsWith("0x08c379a0")) {
               // Try to decode string error
               try {
-                const reason = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + errorData.slice(138));
+                const reason = ethers.AbiCoder.defaultAbiCoder().decode(['string'], '0x' + error.data.slice(138));
                 onShowToast?.("error", `Transaction would fail: ${reason[0]}`);
               } catch (e) {
                 onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
@@ -781,17 +697,17 @@ const VaultApp = ({ onShowToast, mode }) => {
       const gasPrice = await readProvider.getGasPrice();
       const maxGasCost = gasLimit.mul(gasPrice);
       console.log("🟠 Gas price:", gasPrice.toString());
-      console.log("🟠 Max gas cost:", ethers.utils.formatEther(maxGasCost), "ETH");
+      console.log("🟠 Max gas cost:", ethers.formatEther(maxGasCost), "ETH");
 
       if (ethBalance.lt(maxGasCost)) {
-        onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.utils.formatEther(maxGasCost)} ETH but have ${ethers.utils.formatEther(ethBalance)} ETH.`);
+        onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.formatEther(maxGasCost)} ETH but have ${ethers.formatEther(ethBalance)} ETH.`);
         setIsLoading(false);
         return;
       }
 
       console.log("🟠 Sending withdrawal transaction...");
       console.log("🟠 Final transaction summary:", {
-        amountUSDC: ethers.utils.formatUnits(usdcAmount, 6),
+        amountUSDC: ethers.formatUnits(usdcAmount, 6),
         receiver: account,
         owner: account,
         gasLimit: gasLimit.toString(),

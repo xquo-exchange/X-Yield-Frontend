@@ -1,7 +1,7 @@
 // WalletContext.jsx
 
 import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
-import { ethers } from "ethers";
+import { ethers, BrowserProvider } from "ethers";
 import {
   getAccount,
   getChainId,
@@ -79,10 +79,7 @@ export const WalletProvider = ({ children }) => {
           throw new Error("Wallet client unavailable");
         }
 
-        const ethersProvider = new ethers.providers.Web3Provider(
-          walletClient.transport,
-          "any"
-        );
+        const ethersProvider = new BrowserProvider(walletClient.transport);
 
         setProvider(ethersProvider);
         setWalletAddress(account.address);
@@ -384,14 +381,14 @@ export const WalletProvider = ({ children }) => {
         if (isFarcasterEnv) {
           // In Farcaster, always use public RPC for reading (Farcaster provider is unreliable)
           console.log('🔄 Farcaster detected - using public RPC for balance reads');
-          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+          readProvider = new ethers.JsonRpcProvider('https://mainnet.base.org');
         } else if (provider) {
           // Not Farcaster - use the wallet's provider normally
           readProvider = provider;
         } else {
           // No provider - use fallback
           console.log('🔄 No provider - using fallback RPC for balance reads');
-          readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+          readProvider = new ethers.JsonRpcProvider('https://mainnet.base.org');
         }
         
         // Safety check - should never happen but just in case
@@ -422,12 +419,12 @@ export const WalletProvider = ({ children }) => {
           return;
         }
 
-        const formattedUsdc = ethers.utils.formatUnits(usdcBal, usdcDecimals);
+        const formattedUsdc = ethers.formatUnits(usdcBal, usdcDecimals);
 
         let formattedVaultBalance = "0";
         if (!vaultTokenBalance.isZero()) {
           const assetsValue = await vaultContract.convertToAssets(vaultTokenBalance);
-          formattedVaultBalance = ethers.utils.formatUnits(assetsValue, 6);
+          formattedVaultBalance = ethers.formatUnits(assetsValue, 6);
         }
 
         console.log('✅ Balances fetched successfully:', { 
@@ -516,7 +513,7 @@ export const WalletProvider = ({ children }) => {
 
         const balance = await tokenContract.balanceOf(walletAddress);
         const decimals = await tokenContract.decimals();
-        const required = ethers.utils.parseUnits(requiredAmount.toString(), decimals);
+        const required = ethers.parseUnits(requiredAmount.toString(), decimals);
 
         if (balance.lt(required)) {
           return {
@@ -528,7 +525,7 @@ export const WalletProvider = ({ children }) => {
 
         return {
           success: true,
-          balance: ethers.utils.formatUnits(balance, decimals),
+          balance: ethers.formatUnits(balance, decimals),
         };
       } catch (error) {
         console.error("Balance check failed:", error);
