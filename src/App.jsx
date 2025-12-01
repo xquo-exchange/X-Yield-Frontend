@@ -1,149 +1,45 @@
-import React, { useState, useEffect } from "react";
-import { sdk } from "@farcaster/miniapp-sdk";
-import { useMiniApp } from "@neynar/react";
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { Buffer } from 'buffer'
+import { WagmiConfig } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MiniAppProvider } from '@neynar/react'
+import '@neynar/react/dist/style.css'
 
-import { WalletProvider } from "./contexts/WalletContext";
-import { useWallet } from "./hooks/useWallet";
-import Orb from "./components/Orb";
-import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
-import VaultApp from "./components/MorphoApp";
-import Toast from "./components/Toast";
-import GalaxyLanding from "./components/GalaxyLanding";
-import EmailBanner from "./components/EmailBanner";
-import SocialLinks from "./components/SocialLinks";
-import "./App.css";
+import App from './App'
+import './index.css'
+import { appKit, wagmiAdapter } from './config/appKit'
 
-function AppContent() {
-  const [activePage, setActivePage] = useState("deposit");
-  const [toast, setToast] = useState(null);
-  const { isConnected, connectWallet } = useWallet();
+// Ensure AppKit is initialized (side effect import)
+void appKit
 
-  // Neynar Mini App SDK state
-  const { isSDKLoaded, addMiniApp, isMiniAppAdded } = useMiniApp();
+// Polyfill Buffer for browser
+window.Buffer = Buffer
 
-  // AUTO-POPUP: Add Mini App on load
-  useEffect(() => {
-    if (isSDKLoaded && !isMiniAppAdded) {
-      addMiniApp().catch((err) => {
-        console.error("Auto Add Mini App failed:", err);
-      });
-    }
-  }, [isSDKLoaded, isMiniAppAdded, addMiniApp]);
+window.addEventListener('unhandledrejection', (event) => {
+  const error = event.reason;
+  const errorMessage = error?.message || String(error);
 
-  // Scroll lock logic when not connected
-  useEffect(() => {
-    if (!isConnected) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.height = "100vh";
-      document.documentElement.style.height = "100vh";
-    } else {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.height = "";
-      document.documentElement.style.height = "";
-    }
-
-    return () => {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.height = "";
-      document.documentElement.style.height = "";
-    };
-  }, [isConnected]);
-
-  const showToast = (type, message, txHash = null) => {
-    setToast({ type, message, txHash });
-  };
-
-  const closeToast = () => setToast(null);
-
-  const handleConnect = async () => {
-    const result = await connectWallet();
-    if (!result.success && result?.error !== "NO_ACCOUNT") {
-      showToast("error", result.message);
-    }
-  };
-
-  // Landing screen (not connected)
-  if (!isConnected) {
-    return (
-      <div className="landing-layout">
-        <GalaxyLanding onConnect={handleConnect} />
-        <SocialLinks variant="landing" />
-      </div>
-    );
+  if (
+    errorMessage?.includes('No matching key') ||
+    errorMessage?.includes('session topic doesn\'t exist') ||
+    errorMessage?.includes('Pending session not found')
+  ) {
+    event.preventDefault();
+    return;
   }
 
-  // Main App
-  return (
-    <>
-      <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
-      <Navbar onShowToast={showToast} />
+  console.error('Unhandled promise rejection:', error);
+});
 
-      <div className="content-wrapper">
-        <div className="email-banner-wrapper">
-          <EmailBanner />
-        </div>
-        <div className="main-container">
-          <Sidebar activePage={activePage} setActivePage={setActivePage} />
+const queryClient = new QueryClient()
 
-          <div
-            className="center-content"
-            style={{ animation: "fadeInScale 0.3s ease-out" }}
-          >
-            <VaultApp onShowToast={showToast} mode={activePage} />
-          </div>
-        </div>
-      </div>
-
-      {toast && (
-        <Toast
-          type={toast.type}
-          message={toast.message}
-          txHash={toast.txHash}
-          onClose={closeToast}
-          duration={5000}
-        />
-      )}
-
-      <SocialLinks />
-    </>
-  );
-}
-
-function App() {
-  // Mini App host: hide splash screen
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const inside = await sdk.isInMiniApp();
-        if (cancelled || !inside) return;
-
-        await sdk.actions.ready();
-        console.log("Mini App ready()");
-      } catch (error) {
-        console.error("Mini App ready() failed:", error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return (
-    <WalletProvider>
-      <div className="app">
-        <div className="app-body">
-          <AppContent />
-        </div>
-      </div>
-    </WalletProvider>
-  );
-}
-
-export default App;
+createRoot(document.getElementById('root')).render(
+  <QueryClientProvider client={queryClient}>
+    <WagmiConfig config={wagmiAdapter.wagmiConfig}>
+      <MiniAppProvider analyticsEnabled={true}>
+        <App />
+      </MiniAppProvider>
+    </WagmiConfig>
+  </QueryClientProvider>
+)
