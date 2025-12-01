@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
 import { WagmiConfig } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MiniAppProvider } from '@neynar/react'
+import '@neynar/react/dist/style.css'
+
 import App from './App'
 import './index.css'
 import { appKit, wagmiAdapter } from './config/appKit'
@@ -25,24 +28,22 @@ window.addEventListener('unhandledrejection', (event) => {
     errorMessage?.includes('Pending session not found') ||
     errorMessage?.includes('No matching key')
   ) {
-    // These are from stale WalletConnect sessions - harmless, just suppress
     event.preventDefault();
     return;
   }
-  
-  // Let other errors propagate normally
+
   console.error('Unhandled promise rejection:', error);
 });
 
-// CRITICAL MOBILE FIX: Disable StrictMode in development to prevent double-mounting
-// StrictMode causes components to mount twice, which can trigger duplicate wallet connection attempts
-// This is especially problematic on mobile where each connection attempt triggers wallet app pop-ups
+// CRITICAL MOBILE FIX: Disable StrictMode to prevent double-mounting
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')).render(
   <QueryClientProvider client={queryClient}>
     <WagmiConfig config={wagmiAdapter.wagmiConfig}>
-      <App />
+      <MiniAppProvider analyticsEnabled={true}>
+        <App />
+      </MiniAppProvider>
     </WagmiConfig>
   </QueryClientProvider>
 )
