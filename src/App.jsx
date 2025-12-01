@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { useMiniApp } from "@neynar/react";
+
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
+
 import Orb from "./components/Orb";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
@@ -10,24 +13,25 @@ import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
 import EmailBanner from "./components/EmailBanner";
 import SocialLinks from "./components/SocialLinks";
+
 import "./App.css";
 
 function AppContent() {
   const [activePage, setActivePage] = useState("deposit");
   const [toast, setToast] = useState(null);
   const [isMiniApp, setIsMiniApp] = useState(false);
-  const { isConnected, connectWallet } = useWallet();
 
-  // Detect mini app environment
+  const { isConnected, connectWallet } = useWallet();
+  const { isSDKLoaded, addMiniApp } = useMiniApp(); // Neynar SDK
+
+  // Detect Mini App environment
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         const inside = await sdk.isInMiniApp();
-        if (!cancelled) {
-          setIsMiniApp(inside);
-        }
+        if (!cancelled) setIsMiniApp(inside);
       } catch (err) {
         console.error("MiniApp detection failed:", err);
       }
@@ -38,17 +42,16 @@ function AppContent() {
     };
   }, []);
 
-  // Button logic: Add Mini App (enable notifications)
+  // Neynar-driven Add Mini App handler
   const handleAddMiniApp = async () => {
     try {
-      const res = await sdk.actions.addFrame();
-      console.log("Mini App added:", res);
+      await addMiniApp();
       setToast({
         type: "success",
-        message: "Mini App added! Notifications enabled.",
+        message: "Mini App added — notifications enabled!",
       });
-    } catch (err) {
-      console.error("addFrame() failed:", err);
+    } catch (e) {
+      console.error("Error adding mini app:", e);
       setToast({
         type: "error",
         message: "Could not add Mini App.",
@@ -56,7 +59,7 @@ function AppContent() {
     }
   };
 
-  // Handle wallet connection UX
+  // Wallet UX scroll locking
   useEffect(() => {
     if (!isConnected) {
       document.body.style.overflow = "hidden";
@@ -91,13 +94,13 @@ function AppContent() {
     }
   };
 
+  // LANDING PAGE (not connected)
   if (!isConnected) {
     return (
       <div className="landing-layout">
         <GalaxyLanding onConnect={handleConnect} />
 
-        {/* SHOW ADD MINI APP BUTTON ONLY IF INSIDE A MINI APP HOST */}
-        {isMiniApp && (
+        {isMiniApp && isSDKLoaded && (
           <button
             onClick={handleAddMiniApp}
             style={{
@@ -109,7 +112,7 @@ function AppContent() {
               border: "none",
             }}
           >
-            Add Mini App (Enable Notifications)
+            Add Mini App / Enable Notifications
           </button>
         )}
 
@@ -118,6 +121,7 @@ function AppContent() {
     );
   }
 
+  // MAIN APP CONTENT
   return (
     <>
       <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
@@ -127,20 +131,17 @@ function AppContent() {
         <div className="email-banner-wrapper">
           <EmailBanner />
         </div>
+
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
-          <div
-            className="center-content"
-            style={{ animation: "fadeInScale 0.3s ease-out" }}
-          >
+          <div className="center-content" style={{ animation: "fadeInScale 0.3s ease-out" }}>
             <VaultApp onShowToast={showToast} mode={activePage} />
           </div>
         </div>
       </div>
 
-      {/* Add Mini App button also available inside full UI */}
-      {isMiniApp && (
+      {isMiniApp && isSDKLoaded && (
         <div style={{ padding: "16px", textAlign: "center" }}>
           <button
             onClick={handleAddMiniApp}
@@ -153,7 +154,7 @@ function AppContent() {
               marginTop: "10px",
             }}
           >
-            Add Mini App (Enable Notifications)
+            Add Mini App / Enable Notifications
           </button>
         </div>
       )}
@@ -174,7 +175,7 @@ function AppContent() {
 }
 
 function App() {
-  // mini app ready
+  // MiniApp ready()
   useEffect(() => {
     let cancelled = false;
 
@@ -182,7 +183,6 @@ function App() {
       try {
         const inside = await sdk.isInMiniApp();
         if (cancelled || !inside) return;
-
         await sdk.actions.ready();
       } catch (error) {
         console.error("Mini App ready() failed:", error);
