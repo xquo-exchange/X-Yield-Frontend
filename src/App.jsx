@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { useMiniApp } from "@neynar/react";
+
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
 import Orb from "./components/Orb";
@@ -17,6 +19,19 @@ function AppContent() {
   const [toast, setToast] = useState(null);
   const { isConnected, connectWallet } = useWallet();
 
+  // Neynar Mini App SDK state
+  const { isSDKLoaded, addMiniApp, isMiniAppAdded } = useMiniApp();
+
+  // AUTO-POPUP: Add Mini App on load
+  useEffect(() => {
+    if (isSDKLoaded && !isMiniAppAdded) {
+      addMiniApp().catch((err) => {
+        console.error("Auto Add Mini App failed:", err);
+      });
+    }
+  }, [isSDKLoaded, isMiniAppAdded, addMiniApp]);
+
+  // Scroll lock logic when not connected
   useEffect(() => {
     if (!isConnected) {
       document.body.style.overflow = "hidden";
@@ -51,6 +66,7 @@ function AppContent() {
     }
   };
 
+  // Landing screen (not connected)
   if (!isConnected) {
     return (
       <div className="landing-layout">
@@ -60,23 +76,24 @@ function AppContent() {
     );
   }
 
+  // Main App
   return (
     <>
       <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
       <Navbar onShowToast={showToast} />
-      
+
       <div className="content-wrapper">
         <div className="email-banner-wrapper">
           <EmailBanner />
         </div>
         <div className="main-container">
           <Sidebar activePage={activePage} setActivePage={setActivePage} />
-          
-          <div className="center-content" style={{animation: 'fadeInScale 0.3s ease-out'}}>
-            <VaultApp 
-              onShowToast={showToast}
-              mode={activePage}
-            />
+
+          <div
+            className="center-content"
+            style={{ animation: "fadeInScale 0.3s ease-out" }}
+          >
+            <VaultApp onShowToast={showToast} mode={activePage} />
           </div>
         </div>
       </div>
@@ -97,21 +114,17 @@ function AppContent() {
 }
 
 function App() {
+  // Mini App host: hide splash screen
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         const inside = await sdk.isInMiniApp();
+        if (cancelled || !inside) return;
 
-        if (cancelled) return;
-
-        if (inside) {
-          await sdk.actions.ready();
-          console.log("Farcaster Mini App: ready() called — UI should render now");
-        } else {
-          console.warn("Not running inside a Mini App host — skipping ready()");
-        }
+        await sdk.actions.ready();
+        console.log("Mini App ready()");
       } catch (error) {
         console.error("Mini App ready() failed:", error);
       }
