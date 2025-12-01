@@ -15,38 +15,11 @@ import SocialLinks from "./components/SocialLinks";
 
 import "./App.css";
 
-// -----------------------------------------
-// AUTO-ADD LOGIC (WITHOUT NEYNAR REACT SDK)
-// -----------------------------------------
-async function autoAddMiniApp() {
-  try {
-    const inside = await sdk.isInMiniApp();
-    if (!inside) return;
-
-    const added = await sdk.miniapp.isAdded(); 
-    // se l'utente ha già aggiunto la Mini App → non fare nulla
-    if (added) {
-      console.log("Mini App already added.");
-      return;
-    }
-
-    // altrimenti apri AUTOMATICAMENTE il popup
-    console.log("Opening Add Mini App popup automatically...");
-    await sdk.actions.addMiniApp();
-
-  } catch (err) {
-    console.error("Auto Add Mini App failed:", err);
-  }
-}
-
-// -----------------------------------------
-
 function AppContent() {
   const [activePage, setActivePage] = useState("deposit");
   const [toast, setToast] = useState(null);
   const { isConnected, connectWallet } = useWallet();
 
-  // Scroll lock UX logic
   useEffect(() => {
     if (!isConnected) {
       document.body.style.overflow = "hidden";
@@ -81,7 +54,6 @@ function AppContent() {
     }
   };
 
-  // LANDING PAGE
   if (!isConnected) {
     return (
       <div className="landing-layout">
@@ -91,7 +63,6 @@ function AppContent() {
     );
   }
 
-  // MAIN APP UI
   return (
     <>
       <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
@@ -129,27 +100,29 @@ function AppContent() {
 }
 
 function App() {
-
-  // HIDE SPLASH + AUTO-ADD POPUP
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         const inside = await sdk.isInMiniApp();
-        if (cancelled) return;
+        if (cancelled || !inside) return;
 
-        if (inside) {
-          await sdk.actions.ready();
-          console.log("Mini App ready()");
+        // 🔵 Nascondi lo splash
+        await sdk.actions.ready();
 
-          // APRI AUTOMATICAMENTE IL POPUP DI ADD
-          autoAddMiniApp();
-        } else {
-          console.warn("Not running inside Mini App host.");
+        // 🔵 Ottieni contesto
+        const ctx = await sdk.context.get();
+        console.log("MiniApp context:", ctx);
+
+        // Se la mini-app NON è aggiunta → mostra il popup automaticamente
+        if (!ctx.miniapp?.is_added) {
+          console.log("Opening Add Frame popup automatically...");
+          await sdk.actions.addFrame();
         }
+
       } catch (error) {
-        console.error("Mini App initialization failed:", error);
+        console.error("Mini App init failed:", error);
       }
     })();
 
