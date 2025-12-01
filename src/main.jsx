@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
 import { WagmiConfig } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MiniAppProvider } from '@neynar/react'
-import '@neynar/react/dist/style.css'
 
 import App from './App'
 import './index.css'
@@ -31,19 +29,16 @@ window.addEventListener('unhandledrejection', (event) => {
     event.preventDefault();
     return;
   }
-
+  
   console.error('Unhandled promise rejection:', error);
 });
 
-// CRITICAL MOBILE FIX: Disable StrictMode to prevent double-mounting
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')).render(
   <QueryClientProvider client={queryClient}>
     <WagmiConfig config={wagmiAdapter.wagmiConfig}>
-      <MiniAppProvider analyticsEnabled={true}>
-        <App />
-      </MiniAppProvider>
+      <App />
     </WagmiConfig>
   </QueryClientProvider>
 )
