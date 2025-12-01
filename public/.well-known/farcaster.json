@@ -6,6 +6,7 @@
     "homeUrl": "https://x-quo.app",
     "splashImageUrl": "https://www.x-quo.app/icon.png",
     "splashBackgroundColor": "#000000",
+    "webhookUrl": "https://api.neynar.com/f/app/5c6d59e0-b31d-4b6a-bf4d-1f8cdd619ebe/event",
     "webhookUrl": "https://x-quo.app/api/webhook",
     "subtitle": "USDC yield on Base",
     "description": "Earn yield on USDC through the X-QUO vault on Base.",
@@ -19,7 +20,6 @@
     "tagline": "Earn USDC yield on base",
     "ogTitle": "X-QUO – USDC yield on Base",
     "ogDescription": "Earn yield on USDC through the X-QUO vault on Base"
-    "webhookUrl": "https://api.neynar.com/f/app/5c6d59e0-b31d-4b6a-bf4d-1f8cdd619ebe/event"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjE1MjY3MDYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgyQkZkZWRFMkU3NzQ0Mjc4ZTEyNDE0YWMwMThmRmRBYzE1NmU4RjlkIn0",
