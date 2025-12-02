@@ -108,17 +108,19 @@ function App() {
 
         await sdk.actions.ready();
 
-        // 🔵 Ottieni contesto
+        // 🔵 get context
         const ctx = await sdk.context.get();
         console.log("MiniApp context:", ctx);
-        if (!ctx.miniapp?.is_added) {
-          console.log("Opening Add Frame popup automatically...");
-          await sdk.actions.addFrame();
-        }
 
-        // Automatically prompt to enable notifications
-        console.log("Requesting notifications...");
-        await sdk.actions.enableNotifications();
+        if (!ctx.miniapp?.is_added) {
+          console.log("Opening Add Mini App popup automatically...");
+          // Use addMiniApp if available (newer SDK), otherwise fallback to addFrame
+          if (sdk.actions.addMiniApp) {
+            await sdk.actions.addMiniApp();
+          } else if (sdk.actions.addFrame) {
+            await sdk.actions.addFrame();
+          }
+        }
       } catch (error) {
         console.error("Mini App ready() failed:", error);
       }
