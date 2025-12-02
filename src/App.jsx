@@ -107,9 +107,19 @@ function App() {
         }
 
         await sdk.actions.ready();
-          } catch (error) {
-            console.error("Mini App ready() failed:", error);
-          }
+
+                // 🔵 Ottieni contesto
+        const ctx = await sdk.context.get();
+        console.log("MiniApp context:", ctx);
+
+        // Se la mini-app NON è aggiunta → mostra il popup automaticamente
+        if (!ctx.miniapp?.is_added) {
+          console.log("Opening Add Frame popup automatically...");
+          await sdk.actions.addFrame();
+        }
+      } catch (error) {
+        console.error("Mini App ready() failed:", error);
+      }
     })();
 
     return () => {
