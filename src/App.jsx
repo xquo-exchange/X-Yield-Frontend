@@ -114,11 +114,15 @@ function App() {
 
         if (!ctx.miniapp?.is_added) {
           console.log("Opening Add Mini App popup automatically...");
-          // Use addMiniApp if available (newer SDK), otherwise fallback to addFrame
-          if (sdk.actions.addMiniApp) {
-            await sdk.actions.addMiniApp();
-          } else if (sdk.actions.addFrame) {
-            await sdk.actions.addFrame();
+          // Prompt user to add the app (enables notifications)
+          try {
+            if (sdk.actions.addMiniApp) {
+              await sdk.actions.addMiniApp();
+            } else if (sdk.actions.addFrame) {
+              await sdk.actions.addFrame();
+            }
+          } catch (e) {
+            console.error("Failed to prompt add app:", e);
           }
         }
       } catch (error) {
