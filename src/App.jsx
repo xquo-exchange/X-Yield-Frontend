@@ -21,8 +21,6 @@ function AppContent() {
         const isMiniApp = await sdk.isInMiniApp();
         if (!isMiniApp) return;
 
-        await sdk.actions.ready();
-
         const ctx = await sdk.context.get();
         const alreadyAdded =
           ctx?.miniapp?.is_added === true ||
@@ -43,9 +41,7 @@ function AppContent() {
         await sdk.actions.addFrame();
       }
       setShowAddButton(false);
-      showToast("success", "Added to Farcaster!");
     } catch (e) {
-      console.error("Add to Farcaster failed:", e);
       showToast("error", "Failed to add to Farcaster");
     }
   };
@@ -68,10 +64,7 @@ function AppContent() {
       <div className="landing-layout">
         <GalaxyLanding onConnect={handleConnect} />
         {showAddButton && (
-          <button
-            onClick={handleAddToFarcaster}
-            className="add-to-farcaster-btn"
-          >
+          <button onClick={handleAddToFarcaster} className="add-to-farcaster-btn">
             Add to Farcaster
           </button>
         )}
@@ -115,6 +108,52 @@ function AppContent() {
 }
 
 function App() {
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const isMiniApp = await sdk.isInMiniApp();
+        if (!isMiniApp || cancelled) return;
+
+        await sdk.actions.ready();
+
+        await new Promise((res) => setTimeout(res, 300));
+
+        const ctx = await sdk.context.get();
+        console.log("MiniApp context:", ctx);
+
+        const alreadyAdded =
+          ctx?.miniapp?.is_added === true ||
+          ctx?.frame?.is_added === true ||
+          false;
+
+        if (alreadyAdded) return;
+
+        const canAddMiniApp = typeof sdk.actions.addMiniApp === "function";
+        const canAddFrame = typeof sdk.actions.addFrame === "function";
+
+        if (!canAddMiniApp && !canAddFrame) return;
+
+        try {
+          if (canAddMiniApp) {
+            await sdk.actions.addMiniApp();
+          } else {
+            await sdk.actions.addFrame();
+          }
+        } catch (e) {
+          console.error("Failed to open add popup:", e);
+        }
+      } catch (error) {
+        console.error("Mini App setup error:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <WalletProvider>
       <div className="app">
