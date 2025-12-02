@@ -13,27 +13,38 @@ function AppContent() {
   const [activePage, setActivePage] = useState("deposit");
   const [toast, setToast] = useState(null);
   const { isConnected, connectWallet } = useWallet();
+  const [showAddButton, setShowAddButton] = useState(false);
 
   useEffect(() => {
-    if (!isConnected) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.height = "100vh";
-      document.documentElement.style.height = "100vh";
-    } else {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.height = "";
-      document.documentElement.style.height = "";
-    }
+    (async () => {
+      try {
+        const isMiniApp = await sdk.isInMiniApp();
+        if (!isMiniApp) return;
 
-    return () => {
-      document.body.style.overflow = "";
-      document.documentElement.style.overflow = "";
-      document.body.style.height = "";
-      document.documentElement.style.height = "";
-    };
-  }, [isConnected]);
+        const ctx = await sdk.context.get();
+        const alreadyAdded =
+          ctx?.miniapp?.is_added === true ||
+          ctx?.frame?.is_added === true ||
+          false;
+        setShowAddButton(!alreadyAdded);
+      } catch (e) {
+        console.error("MiniApp check failed:", e);
+      }
+    })();
+  }, []);
+
+  const handleAddToFarcaster = async () => {
+    try {
+      if (typeof sdk.actions.addMiniApp === "function") {
+        await sdk.actions.addMiniApp();
+      } else if (typeof sdk.actions.addFrame === "function") {
+        await sdk.actions.addFrame();
+      }
+      setShowAddButton(false);
+    } catch (e) {
+      showToast("error", "Failed to add to Farcaster");
+    }
+  };
 
   const showToast = (type, message, txHash = null) => {
     setToast({ type, message, txHash });
@@ -52,6 +63,11 @@ function AppContent() {
     return (
       <div className="landing-layout">
         <GalaxyLanding onConnect={handleConnect} />
+        {showAddButton && (
+          <button onClick={handleAddToFarcaster} className="add-to-farcaster-btn">
+            Add to Farcaster
+          </button>
+        )}
         <SocialLinks variant="landing" />
       </div>
     );
