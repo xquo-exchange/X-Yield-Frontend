@@ -96,9 +96,9 @@ export const WalletProvider = ({ children }) => {
         }
 
         // Only save to localStorage on desktop OR Farcaster (not regular mobile)
-        const isFarcasterEnv = typeof navigator !== 'undefined' && 
+        const isFarcasterEnv = typeof navigator !== 'undefined' &&
           /Farcaster|Warpcast/i.test(navigator.userAgent);
-          
+
         if (!isMobileDevice() || isFarcasterEnv) {
           localStorage.setItem("walletConnected", "true");
         }
@@ -132,9 +132,9 @@ export const WalletProvider = ({ children }) => {
     }
 
     // 🔥 CRITICAL: Detect Farcaster - don't clear wallet state in Farcaster
-    const isFarcasterEnv = typeof navigator !== 'undefined' && 
+    const isFarcasterEnv = typeof navigator !== 'undefined' &&
       /Farcaster|Warpcast/i.test(navigator.userAgent);
-    
+
     console.log('🔍 Environment check:', {
       isMobile: isMobileDevice(),
       isFarcaster: isFarcasterEnv,
@@ -147,10 +147,10 @@ export const WalletProvider = ({ children }) => {
     if (isMobileDevice() && !isFarcasterEnv) {
       // Clear wallet connection flag
       localStorage.removeItem("walletConnected");
-      
+
       // Disconnect any existing wallet connection
       handleDisconnect();
-      
+
       // Clear wagmi storage (cookies) for mobile
       try {
         // Clear all cookies that might contain wallet connection data
@@ -166,7 +166,7 @@ export const WalletProvider = ({ children }) => {
       } catch (error) {
         console.warn("Failed to clear cookies:", error);
       }
-      
+
       // Don't auto-reconnect on mobile - user must manually connect each time
       // Set up watchers but don't initialize existing account
       accountWatcherRef.current = watchAccount(wagmiConfig, {
@@ -329,17 +329,17 @@ export const WalletProvider = ({ children }) => {
 
   const fetchBalances = useCallback(
     async (forceRefresh = false) => {
-      const isFarcasterEnv = typeof navigator !== 'undefined' && 
+      const isFarcasterEnv = typeof navigator !== 'undefined' &&
         /Farcaster|Warpcast/i.test(navigator.userAgent);
-      
-      console.log('🔍 fetchBalances called:', { 
-        walletAddress, 
-        hasProvider: !!provider, 
-        chainId, 
-        forceRefresh 
+
+      console.log('🔍 fetchBalances called:', {
+        walletAddress,
+        hasProvider: !!provider,
+        chainId,
+        forceRefresh
       });
-      
-      
+
+
       if (!walletAddress) {
         console.warn('⚠️ Balance fetch skipped - no wallet', { walletAddress });
         setIsBalancesLoading(false);
@@ -377,10 +377,10 @@ export const WalletProvider = ({ children }) => {
       try {
         // FARCASTER FIX: Use fallback RPC provider for read operations
         // Farcaster wallet provider doesn't support eth_call, so we use public RPC for reads
-        
+
         // Initialize readProvider - ALWAYS use fallback RPC in Farcaster for safety
         let readProvider = null;
-        
+
         if (isFarcasterEnv) {
           // In Farcaster, always use public RPC for reading (Farcaster provider is unreliable)
           console.log('🔄 Farcaster detected - using public RPC for balance reads');
@@ -393,7 +393,7 @@ export const WalletProvider = ({ children }) => {
           console.log('🔄 No provider - using fallback RPC for balance reads');
           readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
         }
-        
+
         // Safety check - should never happen but just in case
         if (!readProvider) {
           throw new Error('Failed to initialize read provider');
@@ -430,11 +430,11 @@ export const WalletProvider = ({ children }) => {
           formattedVaultBalance = ethers.utils.formatUnits(assetsValue, 6);
         }
 
-        console.log('✅ Balances fetched successfully:', { 
-          usdc: formattedUsdc, 
-          vault: formattedVaultBalance 
+        console.log('✅ Balances fetched successfully:', {
+          usdc: formattedUsdc,
+          vault: formattedVaultBalance
         });
-        
+
 
         setUsdcBalance(formattedUsdc);
         setVaultBalance(formattedVaultBalance);
@@ -449,7 +449,7 @@ export const WalletProvider = ({ children }) => {
         };
       } catch (error) {
         console.error('❌ Balance fetch error:', error);
-        
+
         if (error.code === "NETWORK_ERROR" || error.message?.includes("underlying network changed")) {
           setIsBalancesLoading(false);
           return;
@@ -473,14 +473,14 @@ export const WalletProvider = ({ children }) => {
   useEffect(() => {
     // On mobile, disconnect wallet when page is about to unload/reload
     // BUT: Don't do this in Farcaster
-    const isFarcasterEnv = typeof navigator !== 'undefined' && 
+    const isFarcasterEnv = typeof navigator !== 'undefined' &&
       /Farcaster|Warpcast/i.test(navigator.userAgent);
-    
+
     if (isMobileDevice() && !isFarcasterEnv) {
       const handleBeforeUnload = () => {
         // Clear localStorage
         localStorage.removeItem("walletConnected");
-        
+
         // Disconnect wallet
         handleDisconnect();
       };

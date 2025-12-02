@@ -187,13 +187,18 @@
 }
 
 @media (max-width: 480px) {
+  .galaxy-hero {
+    gap: 24px;
+  }
+
   .galaxy-logo {
     height: 56px;
-    margin-bottom: 20px;
+    margin-bottom: 0;
   }
 
   .galaxy-title {
     font-size: 32px;
+    margin-top: 20px;
   }
 
   .galaxy-subtitle {
@@ -215,7 +220,7 @@
 @media (max-width: 390px) {
   .galaxy-logo {
     height: 52px;
-    margin-bottom: 18px;
+    margin-bottom: 0;
   }
 
   .galaxy-subtitle {
@@ -240,7 +245,7 @@
 @media (max-width: 320px) {
   .galaxy-logo {
     height: 48px;
-    margin-bottom: 14px;
+    margin-bottom: 0;
   }
 
   .galaxy-subtitle {
@@ -260,5 +265,22 @@
 
   .galaxy-content {
     padding: 54px 10px 90px;
+  }
+}
+
+.galaxy-powered-by {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 20;
+}
+
+@media (max-width: 480px) {
+  .galaxy-powered-by {
+    bottom: 100px;
   }
 }

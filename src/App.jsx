@@ -8,7 +8,7 @@ import Sidebar from "./components/Sidebar";
 import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
-import EmailBanner from "./components/EmailBanner";
+
 import SocialLinks from "./components/SocialLinks";
 import "./App.css";
 
@@ -62,20 +62,19 @@ function AppContent() {
 
   return (
     <>
-      <Orb hue={0} hoverIntensity={0.2} rotateOnHover={true} />
+
       <Navbar onShowToast={showToast} />
-      
+
       <div className="content-wrapper">
-        <div className="email-banner-wrapper">
-          <EmailBanner />
-        </div>
+
         <div className="main-container">
-          <Sidebar activePage={activePage} setActivePage={setActivePage} />
-          
-          <div className="center-content" style={{animation: 'fadeInScale 0.3s ease-out'}}>
-            <VaultApp 
+
+
+          <div className="center-content" style={{ animation: 'fadeInScale 0.3s ease-out' }}>
+            <VaultApp
               onShowToast={showToast}
               mode={activePage}
+              setMode={setActivePage}
             />
           </div>
         </div>
@@ -108,9 +107,20 @@ function App() {
         }
 
         await sdk.actions.ready();
-      } catch (error) {
-        console.error("Mini App ready() failed:", error);
-      }
+
+        // Prompt user to add the app (enables notifications)
+        try {
+          if (sdk.actions.addMiniApp) {
+            await sdk.actions.addMiniApp();
+          } else if (sdk.actions.addFrame) {
+            await sdk.actions.addFrame();
+          }
+        } catch (e) {
+          console.error("Failed to prompt add app:", e);
+        }
+          } catch (error) {
+            console.error("Mini App ready() failed:", error);
+          }
     })();
 
     return () => {

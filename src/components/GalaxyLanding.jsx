@@ -145,6 +145,8 @@ const GalaxyLanding = ({ onConnect }) => {
             Connect Wallet
           </button>
 
+        </div>
+        <div className="galaxy-powered-by">
           <PoweredByMorpho />
         </div>
       </div>
