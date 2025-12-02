@@ -2,9 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
-import Orb from "./components/Orb";
 import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
 import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
@@ -100,27 +98,38 @@ function App() {
     (async () => {
       try {
         const isMiniApp = await sdk.isInMiniApp();
-        if (cancelled || !isMiniApp) return;
+        if (!isMiniApp || cancelled) return;
 
         await sdk.actions.ready();
+
+        await new Promise((res) => setTimeout(res, 300));
 
         const ctx = await sdk.context.get();
         console.log("MiniApp context:", ctx);
 
-        if (!ctx.miniapp?.is_added) {
-          console.log("Opening Add Mini App popup automatically...");
-          try {
-            if (sdk.actions.addMiniApp) {
-              await sdk.actions.addMiniApp();
-            } else if (sdk.actions.addFrame) {
-              await sdk.actions.addFrame();
-            }
-          } catch (e) {
-            console.error("Failed to prompt add app:", e);
+        const alreadyAdded =
+          ctx?.miniapp?.is_added === true ||
+          ctx?.frame?.is_added === true ||
+          false;
+
+        if (alreadyAdded) return;
+
+        const canAddMiniApp = typeof sdk.actions.addMiniApp === "function";
+        const canAddFrame = typeof sdk.actions.addFrame === "function";
+
+        if (!canAddMiniApp && !canAddFrame) return;
+
+        try {
+          if (canAddMiniApp) {
+            await sdk.actions.addMiniApp();
+          } else {
+            await sdk.actions.addFrame();
           }
+        } catch (e) {
+          console.error("Failed to open add popup:", e);
         }
       } catch (error) {
-        console.error("Mini App ready() failed:", error);
+        console.error("Mini App setup error:", error);
       }
     })();
 
