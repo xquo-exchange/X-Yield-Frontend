@@ -112,7 +112,8 @@ function App() {
         const ctx = await sdk.context.get();
         console.log("MiniApp context:", ctx);
 
-        if (!ctx.miniapp?.is_added) {
+        // Check if the app is added to the client
+        if (!ctx.client?.added) {
           console.log("Opening Add Mini App popup automatically...");
           // Prompt user to add the app (enables notifications)
           try {
