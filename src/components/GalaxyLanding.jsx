@@ -138,11 +138,15 @@ const GalaxyLanding = ({ onConnect }) => {
             Maximize Your <span className="galaxy-gradient-text">Yield</span>
           </h1>
 
+          <p className="galaxy-subtitle">
+            Earn optimized, non-custodial yield on your USDC on Base Mainnet.
+          </p>
+
           <button
             onClick={onConnect}
             className="galaxy-connect-btn"
           >
-            Connect Wallet
+            Start Earning
           </button>
 
         </div>
