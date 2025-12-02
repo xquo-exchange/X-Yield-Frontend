@@ -2,9 +2,9 @@
   "frame": {
     "name": "X-QUO",
     "version": "1",
-    "iconUrl": "https://www.x-quo.app/icon.png",
+    "iconUrl": "https://x-quo.app/icon.png",
     "homeUrl": "https://x-quo.app",
-    "splashImageUrl": "https://www.x-quo.app/icon.png",
+    "splashImageUrl": "https://x-quo.app/icon.png",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://api.neynar.com/f/app/5c6d59e0-b31d-4b6a-bf4d-1f8cdd619ebe/event",
     "subtitle": "USDC yield on Base",
@@ -25,14 +25,4 @@
     "payload": "eyJkb21haW4iOiJ4LXF1by5hcHAifQ",
     "signature": "vPeBO7nEhL3QFw1SfKwvbuT9KGIAoPuL6CDtT+QHxE0EI3/GNfiGNWQ4caY6xCZrSFxOxuioNzTDgNArme5m5xs="
   }
-
-
-  
-  "baseBuilder": {
-    "ownerAddress": "0x035bE20DB4438355916F349Baa3f11ff88905A45"
-  }
-
-
-
-  
 }
