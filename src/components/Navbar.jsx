@@ -86,7 +86,7 @@ const Navbar = ({ onShowToast }) => {
                 ⏳ <span className="network-text">Switching to Base...</span>
               </div>
             ) : (
-              <div 
+              <div
                 className={`network-indicator ${isBase ? 'mainnet' : 'warning'}`}
                 onClick={!isBase ? handleSwitchNetwork : undefined}
                 style={{ cursor: !isBase ? 'pointer' : 'default' }}

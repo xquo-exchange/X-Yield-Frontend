@@ -73,7 +73,7 @@ const EmailBanner = ({ onSubmit }) => {
     }
   };
 
-  
+
 
   if (isCollapsed) {
     return (
@@ -110,8 +110,8 @@ const EmailBanner = ({ onSubmit }) => {
           <p className="email-banner__eyebrow">Stay in the loop</p>
           <h3>Get early access to X-QUO updates</h3>
           <p>
-          Subscribe to receive vault news, yield announcements, and early 
-          feature previews directly in your inbox.
+            Subscribe to receive vault news, yield announcements, and early
+            feature previews directly in your inbox.
           </p>
         </div>
 
@@ -131,13 +131,12 @@ const EmailBanner = ({ onSubmit }) => {
 
         {(isSubmitting || status) && (
           <p
-            className={`email-banner__status ${
-              isSubmitting
+            className={`email-banner__status ${isSubmitting
                 ? "is-pending"
                 : status.type === "error"
-                ? "is-error"
-                : "is-success"
-            }`}
+                  ? "is-error"
+                  : "is-success"
+              }`}
           >
             {isSubmitting ? "Sending to Mailchimp..." : status.message}
           </p>
