@@ -107,17 +107,6 @@ function App() {
         }
 
         await sdk.actions.ready();
-
-        // Prompt user to add the app (enables notifications)
-        try {
-          if (sdk.actions.addMiniApp) {
-            await sdk.actions.addMiniApp();
-          } else if (sdk.actions.addFrame) {
-            await sdk.actions.addFrame();
-          }
-        } catch (e) {
-          console.error("Failed to prompt add app:", e);
-        }
           } catch (error) {
             console.error("Mini App ready() failed:", error);
           }
