@@ -16,7 +16,7 @@ const Navbar = ({ onShowToast }) => {
     switchToBase,
   } = useWallet();
 
-  const { profileImage, isInMiniApp } = useFarcasterProfile();
+  const { profileImage, username, isInMiniApp } = useFarcasterProfile();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleConnect = async () => {
@@ -131,7 +131,7 @@ const Navbar = ({ onShowToast }) => {
                   </svg>
                 </span>
               )}
-              {truncateAddress(walletAddress)}
+              {username ? `@${username}` : truncateAddress(walletAddress)}
             </button>
 
             {/* Mobile logout button */}
