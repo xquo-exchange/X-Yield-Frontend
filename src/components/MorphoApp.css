@@ -290,6 +290,9 @@
   color: white;
   margin-bottom: 16px;
   text-transform: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .yield-grid {
