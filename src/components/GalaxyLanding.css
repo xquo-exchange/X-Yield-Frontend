@@ -55,6 +55,7 @@
 .galaxy-tagline {
   font-size: 17px;
   font-weight: 400;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
   color: rgba(255, 255, 255, 0.5);
   letter-spacing: 0.02em;
   margin: 32px 0 0 0;
@@ -71,10 +72,10 @@
   height: 52px;
   font-size: 14px;
   font-weight: 500;
-  font-family: inherit;
-  color: #000000;
-  background: #ffffff;
-  border: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 100px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -85,8 +86,9 @@
 }
 
 .galaxy-connect-btn:hover {
-  transform: scale(1.04);
-  box-shadow: 0 0 40px rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.02);
 }
 
 .galaxy-connect-btn:active {
@@ -221,10 +223,14 @@
    Powered by Morpho
    ============================================ */
 .galaxy-powered-by {
-  position: absolute;
+  position: fixed;
   bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 20;
   opacity: 0;
   animation: fadeUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.7s;
