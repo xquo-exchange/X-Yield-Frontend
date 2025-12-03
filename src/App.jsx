@@ -108,22 +108,30 @@ function App() {
 
         await sdk.actions.ready();
 
-        // 🔵 get context
-        const ctx = await sdk.context.get();
+        // Get context - this is a Promise that resolves to the context object
+        const ctx = await sdk.context;
         console.log("MiniApp context:", ctx);
 
-        if (!ctx.miniapp?.is_added) {
-          console.log("Opening Add Mini App popup automatically...");
+        // Check if user has NOT added the mini app yet
+        // ctx.client.added is the correct property according to SDK docs
+        if (ctx?.client && !ctx.client.added) {
+          console.log("User has not added the mini app, prompting to add...");
           // Prompt user to add the app (enables notifications)
           try {
-            if (sdk.actions.addMiniApp) {
-              await sdk.actions.addMiniApp();
-            } else if (sdk.actions.addFrame) {
-              await sdk.actions.addFrame();
-            }
+            await sdk.actions.addMiniApp();
+            console.log("AddMiniApp prompt shown successfully");
           } catch (e) {
-            console.error("Failed to prompt add app:", e);
+            // RejectedByUser or InvalidDomainManifest errors are expected
+            if (e.name === 'RejectedByUser') {
+              console.log("User rejected adding the mini app");
+            } else if (e.name === 'InvalidDomainManifest') {
+              console.error("Invalid domain manifest - make sure farcaster.json is correctly configured");
+            } else {
+              console.error("Failed to prompt add app:", e);
+            }
           }
+        } else {
+          console.log("User has already added the mini app");
         }
       } catch (error) {
         console.error("Mini App ready() failed:", error);
