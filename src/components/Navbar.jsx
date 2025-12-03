@@ -103,14 +103,19 @@ const Navbar = ({ onShowToast }) => {
               className="wallet-button connected desktop-only"
               onClick={() => setShowDropdown(!showDropdown)}
             >
-              {isInMiniApp && profileImage ? (
+              {profileImage ? (
                 <img 
                   src={profileImage} 
                   alt="Profile" 
                   className="wallet-profile-image"
                 />
               ) : (
-                <span className="wallet-indicator"></span>
+                <span className="wallet-avatar-placeholder">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="8" r="4" fill="currentColor"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor"/>
+                  </svg>
+                </span>
               )}
               {truncateAddress(walletAddress)}
             </button>
