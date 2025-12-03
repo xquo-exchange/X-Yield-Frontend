@@ -355,6 +355,9 @@
 
     .network-text {
         display: inline;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .wallet-button {
@@ -397,6 +400,14 @@
 
     .navbar-logo {
         font-size: 13px;
+    }
+
+    .network-text {
+        display: inline;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .navbar-logo-image {

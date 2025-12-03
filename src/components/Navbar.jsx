@@ -108,7 +108,9 @@ const Navbar = ({ onShowToast }) => {
                     </svg>
                   </span>
                 )}
-                <span className="network-text">{getNetworkName(chainId)}</span>
+                <span className="network-text">
+                  {username ? `@${username}` : getNetworkName(chainId)}
+                </span>
               </div>
             )}
 
