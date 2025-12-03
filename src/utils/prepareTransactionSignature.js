@@ -3,63 +3,99 @@ import { parseAbi } from "viem";
 import { base } from "viem/chains";
 import { ethers } from "ethers";
 
-
-const PERMIT2_ABI = parseAbi([
-  "function allowance(address user, address token, address spender) external view returns (uint160 amount, uint48 expiration, uint48 nonce)"
+const eip712Abi = parseAbi([
+  "function nonces(address owner) view returns (uint256)",
+  // Aggiungo anche name e version perché servono per il Domain
+  "function name() view returns (string)",
+  "function version() view returns (string)", 
+  // Alcuni token usano "EIP712Domain" per la versione, ma proviamo lo standard
 ]);
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const GENERAL_ADAPTER1_ADDRESS = "0xb98c948CFA24072e58935BC004a8A7b376AE746A";
-const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 
 
-export async function PrepareTransactionSignature(signer, owner, amount) {
-    const permit2ContractRead = new ethers.Contract(
-        PERMIT2_ADDRESS,
-        PERMIT2_ABI,
+export async function PrepareDepositTransactionSignature(signer, owner, amount) {
+    const usdcContract = new ethers.Contract(
+        USDC_ADDRESS,
+        eip712Abi,
         signer
     );
-    const [, , currentNonce] = await permit2ContractRead.allowance(owner, USDC_ADDRESS, GENERAL_ADAPTER1_ADDRESS);
-    const now = Math.floor(Date.now() / 1000);
-    // Set deadline to 10 minutes
+    const currentNonce = await usdcContract.nonces(owner)
     const tenMinutes = 10 * 60;
-    const deadlineTimestamp = now + tenMinutes;
-    const nonce = Number(currentNonce);
-    const safeAmount = amount.toString(); 
-    const safeDeadline = deadlineTimestamp.toString();
-    const expiration = Number(deadlineTimestamp);
+    const now = Math.floor(Date.now() / 1000);
+    const deadlineTimestamp = BigInt(now + tenMinutes);
+    const messageForSigning = {
+        owner: owner,      
+        spender: GENERAL_ADAPTER1_ADDRESS,    
+        value: amount,       
+        nonce: currentNonce,                
+        deadline: deadlineTimestamp,
+    };
+    const tokenName = await usdcContract.name()
     const domain = {
-        name: 'Permit2',
-        chainId: base.id,
-        verifyingContract: PERMIT2_ADDRESS,
-    };
+      name: tokenName,          
+      version: "2",               
+      chainId: base.id,
+      verifyingContract: USDC_ADDRESS,
+    }
     const types = {
-        PermitSingle: [
-            { name: 'details', type: 'PermitDetails' },
-            { name: 'spender', type: 'address' },
-            { name: 'sigDeadline', type: 'uint256' }
-        ],
-        PermitDetails: [
-            { name: 'token', type: 'address' },
-            { name: 'amount', type: 'uint160' },
-            { name: 'expiration', type: 'uint48' },
-            { name: 'nonce', type: 'uint48' }
-        ]
-    };
-    const value = {
-        details: {
-            token: USDC_ADDRESS,
-            amount: safeAmount,
-            expiration: expiration,
-            nonce: nonce,
-        },
-        spender: GENERAL_ADAPTER1_ADDRESS,
-        sigDeadline: safeDeadline,
-    };
+      // Struttura standard EIP-2612
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' }
+      ]
+    }
+    const value = messageForSigning
     const signature = await signer.signTypedData(domain, types, value);
     return {
-        'nonce': nonce,
-        'expiration': expiration,
-        'deadline': safeDeadline,
+        'nonce': currentNonce.toString(),
+        'deadline': deadlineTimestamp.toString(),
+        'signature': signature
+    };
+}
+
+export async function PrepareWithdrawalTransactionSignature(signer, owner, amount) {
+    const vaultContract = new ethers.Contract(
+        VAULT_ADDRESS,
+        eip712Abi,
+        signer
+    );
+    const currentNonce = await vaultContract.nonces(owner)
+    const tenMinutes = 10 * 60;
+    const now = Math.floor(Date.now() / 1000);
+    const deadlineTimestamp = BigInt(now + tenMinutes);
+    const messageForSigning = {
+        owner: owner,      
+        spender: GENERAL_ADAPTER1_ADDRESS,    
+        value: amount,       
+        nonce: currentNonce,                
+        deadline: deadlineTimestamp,
+    };
+    const domain = {
+      name: "",          
+      version: "1",               
+      chainId: base.id,
+      verifyingContract: VAULT_ADDRESS,
+    }
+    const types = {
+      // Struttura standard EIP-2612
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' }
+      ]
+    }
+    const value = messageForSigning
+    const signature = await signer.signTypedData(domain, types, value);
+    return {
+        'nonce': currentNonce.toString(),
+        'deadline': deadlineTimestamp.toString(),
         'signature': signature
     };
 }

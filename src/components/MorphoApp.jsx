@@ -6,13 +6,12 @@ import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 import { computeAPY } from "../utils/calculateYield"
 import PoweredByMorpho from "./PoweredByMorpho";
-import { PrepareTransactionSignature } from "../utils/prepareTransactionSignature"
+import { PrepareDepositTransactionSignature, PrepareWithdrawalTransactionSignature } from "../utils/prepareTransactionSignature"
 import { reconnectMutationOptions } from "wagmi/query";
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
-const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 
 const BACKEND_BASE_URL = "http://localhost:3000"
 
@@ -193,15 +192,6 @@ const VaultApp = ({ onShowToast, mode }) => {
         readProvider
       );
 
-      // Separate contract for WRITE operations (approve)
-      const usdcContractWrite = new ethers.Contract(
-        USDC_ADDRESS,
-        [
-          "function approve(address spender, uint256 amount) returns (bool)",
-        ],
-        signer
-      );
-
       const decimals = await usdcContractRead.decimals();
       console.log("🔵 USDC decimals:", decimals);
 
@@ -222,93 +212,10 @@ const VaultApp = ({ onShowToast, mode }) => {
         return;
       }
 
-      setStatus("Approving USDC...");
-
-      // Step 1: Approve USDC for vault
-      const approvalAmount = ethers.MaxUint256; // Approve max for gas efficiency
-      console.log("🔵 Approval amount (MaxUint256):", approvalAmount.toString());
-
-      // Check current allowance first (READ operation)
-      const currentAllowance = await usdcContractRead.allowance(account, PERMIT2_ADDRESS);
-      console.log("🔵 Current allowance (raw):", currentAllowance.toString());
-      console.log("🔵 Current allowance (formatted):", ethers.formatUnits(currentAllowance, decimals));
-      console.log("🔵 Allowance sufficient?", currentAllowance >= requiredAmount);
-
-      if (currentAllowance < requiredAmount) {
-        console.log("🔵 Approving USDC...");
-
-        try {
-          // Estimate gas using readProvider (public RPC) first
-          let overrides = {};
-          if (isFarcaster) {
-            console.log("🔵 Estimating approval gas with readProvider...");
-            try {
-              // Manually estimate gas using the read provider
-              // We need to construct the transaction data manually since we can't use the write contract for estimation
-              const data = usdcContractWrite.interface.encodeFunctionData("approve", [PERMIT2_ADDRESS, approvalAmount]);
-              const estimatedGas = await readProvider.estimateGas({
-                to: USDC_ADDRESS,
-                from: account,
-                data: data,
-                value: 0
-              });
-              console.log("🔵 Estimated gas:", estimatedGas.toString());
-
-              // Add buffer and set overrides
-              overrides = {
-                gasLimit: estimatedGas.mul(120).div(100)
-              };
-              console.log("🔵 Using overrides:", overrides);
-            } catch (estimateError) {
-              console.warn("⚠️ Gas estimation failed, using fallback:", estimateError);
-              overrides = { gasLimit: ethers.BigNumber.from("100000") }; // Safe default for approve
-            }
-          }
-
-          const approveTx = await usdcContractWrite.approve(PERMIT2_ADDRESS, approvalAmount, overrides);
-          console.log("🔵 Approval transaction received");
-          console.log("🔵 Transaction object type:", typeof approveTx);
-          console.log("🔵 Transaction object keys:", Object.keys(approveTx || {}));
-
-          try {
-            console.log("🔵 Trying to access tx.hash:", approveTx.hash);
-            setTxHash(approveTx.hash);
-          } catch (hashError) {
-            console.error("❌ Error accessing transaction hash:", hashError);
-          }
-
-          // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
-          console.log("🔵 About to wait for approval confirmation...");
-          if (isFarcaster) {
-            console.log("🔵 Using readProvider.waitForTransaction for Farcaster");
-            if (!approveTx.hash) {
-              throw new Error("Transaction hash is missing");
-            }
-            const receipt = await readProvider.waitForTransaction(approveTx.hash);
-            console.log("✅ USDC approved (via fallback provider), receipt:", receipt);
-          } else {
-            console.log("🔵 Using approveTx.wait() for desktop");
-            await approveTx.wait();
-            console.log("✅ USDC approved");
-          }
-        } catch (approvalError) {
-          console.error("❌ Approval or wait error:", approvalError);
-          console.error("❌ Error details:", {
-            message: approvalError.message,
-            code: approvalError.code,
-            data: approvalError.data,
-            stack: approvalError.stack
-          });
-          throw approvalError; // Re-throw to be caught by outer catch
-        }
-      } else {
-        console.log("🔵 Skipping approval - allowance already sufficient");
-      }
-
       // Step 2: Deposit to vault
       setStatus("Depositing to vault...");
 
-      const txData = await PrepareTransactionSignature(signer, account, requiredAmount);
+      const txData = await PrepareDepositTransactionSignature(signer, account, requiredAmount);
       const payload = {
         params: {
           owner: account, 
@@ -316,10 +223,9 @@ const VaultApp = ({ onShowToast, mode }) => {
             token: USDC_ADDRESS,
             amount: ethers.formatUnits(requiredAmount, decimals), 
             decimal: Number(decimals),
-            expiration: txData.expiration,
+            deadline: txData.deadline,
             nonce: txData.nonce
           },
-          sigDeadline: txData.deadline,
           signature: txData.signature,
         }
       };
@@ -509,7 +415,7 @@ const VaultApp = ({ onShowToast, mode }) => {
     setTxHash(null);
 
     try {
-      const signer = walletProvider.getSigner();
+      const signer = await walletProvider.getSigner();
 
       // FARCASTER FIX: Don't call getAddress() on Farcaster signer (uses eth_call)
       // We already have the account address from wallet context
@@ -523,16 +429,8 @@ const VaultApp = ({ onShowToast, mode }) => {
       let readProvider = walletProvider;
       if (isFarcaster) {
         console.log("🔄 Farcaster detected - using fallback RPC for reads");
-        readProvider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+        readProvider = new ethers.JsonRpcProvider('https://mainnet.base.org');
       }
-
-      // Create vault contract instances
-      // WRITE operations (withdraw)
-      const vaultContractWrite = new ethers.Contract(
-        VAULT_ADDRESS,
-        VAULT_ABI,
-        signer
-      );
 
       // READ operations (balanceOf, decimals, convertToAssets, etc.)
       const vaultContractRead = new ethers.Contract(
@@ -559,7 +457,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🟠 USDC amount (raw BigNumber):", usdcAmount.toString());
       console.log("🟠 USDC amount (formatted check):", ethers.formatUnits(usdcAmount, 6));
       console.log("🟠 USDC amount string length:", usdcAmount.toString().length);
-      console.log("🟠 USDC amount hex:", usdcAmount.toHexString());
+      console.log("🟠 USDC amount hex:", toBeHex(usdcAmount));
 
       // CRITICAL: Check the actual maximum withdrawable amount from the vault
       // This accounts for ERC-4626 rounding and prevents 0x4323a555 errors (READ operation)
@@ -568,7 +466,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🟠 Max withdrawable (formatted):", ethers.formatUnits(maxWithdrawable, 6));
 
       // Cap the withdrawal amount to maxWithdrawable if it exceeds it
-      if (usdcAmount.gt(maxWithdrawable)) {
+      if (usdcAmount > maxWithdrawable) {
         console.warn("🟠 ⚠️ Requested amount exceeds maxWithdrawable, capping to max");
         usdcAmount = maxWithdrawable;
         const cappedAmountFormatted = ethers.formatUnits(maxWithdrawable, 6);
@@ -582,10 +480,10 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("🟠 Required shares vs balance:", {
         required: requiredShares.toString(),
         available: userVaultBalance.toString(),
-        sufficient: userVaultBalance.gte(requiredShares)
+        sufficient: userVaultBalance >= requiredShares
       });
 
-      if (userVaultBalance.lt(requiredShares)) {
+      if (userVaultBalance < requiredShares) {
         // Calculate max withdrawable (READ operation)
         const maxWithdrawableAssets = await vaultContractRead.convertToAssets(userVaultBalance);
         const maxUsdc = ethers.formatUnits(maxWithdrawableAssets, 6);
@@ -603,144 +501,47 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("  - receiver (account):", account);
       console.log("  - owner (account):", account);
 
-      // Check ETH balance for gas first (READ operation)
-      const ethBalance = await readProvider.getBalance(account);
-      console.log("🟠 ETH balance (raw):", ethBalance.toString());
-      console.log("🟠 ETH balance (formatted):", ethers.formatEther(ethBalance));
-
-      // Minimum gas required (rough estimate: 0.0001 ETH should be enough for most transactions)
-      const minGasRequired = ethers.parseEther("0.0001");
-      if (ethBalance.lt(minGasRequired)) {
-        onShowToast?.("error", "Insufficient ETH for gas fees. Please add ETH to your wallet.");
-        setIsLoading(false);
-        return;
-      }
-
-      // Skip simulation and gas estimation in Farcaster (they use eth_call which fails)
-      let gasLimit;
-      if (!isFarcaster) {
-        // Try to simulate the call first to catch revert reasons
-        try {
-          const result = await vaultContractWrite.callStatic.withdraw(usdcAmount, account, account);
-          console.log("🟠 ✅ Static call simulation passed - shares to burn:", result.toString());
-        } catch (simError) {
-          console.error("🟠 ❌ Static call simulation failed:", simError);
-          console.error("🟠 Simulation error message:", simError.message);
-          console.error("🟠 Simulation error data:", simError.data);
-
-          // Check if it's a specific revert reason we can decode
-          if (simError.data && typeof simError.data === 'string') {
-            // Try to decode custom error
-            const errorData = simError.data;
-            console.error("🟠 Error data (hex):", errorData);
-
-            // Common ERC-4626 errors
-            if (errorData === "0x4323a555") {
-              onShowToast?.("error", "Withdrawal amount exceeds available assets. Please check your balance.");
-            } else if (errorData.startsWith("0x08c379a0")) {
-              // Try to decode string error
-              try {
-                const reason = ethers.AbiCoder.defaultAbiCoder().decode(['string'], '0x' + error.data.slice(138));
-                onShowToast?.("error", `Transaction would fail: ${reason[0]}`);
-              } catch (e) {
-                onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
-              }
-            } else {
-              onShowToast?.("error", "Transaction simulation failed. Please check your balance and try again.");
-            }
-          } else {
-            onShowToast?.("error", "Transaction would fail. Please check your balance and try again.");
-          }
-          setIsLoading(false);
-          return;
+      const txData = await PrepareWithdrawalTransactionSignature(signer, account, requiredShares);
+      const payload = {
+        params: {
+          owner: account, 
+          details: {
+            token: VAULT_ADDRESS,
+            amount: ethers.formatUnits(requiredShares, vaultDecimals), 
+            decimal: vaultDecimals.toString(),
+            deadline: txData.deadline,
+            nonce: txData.nonce
+          },
+          signature: txData.signature,
         }
-
-        // Estimate gas with fallback - CRITICAL for reliable transactions
-        try {
-          const estimatedGas = await vaultContractWrite.estimateGas.withdraw(usdcAmount, account, account);
-          // Add 20% buffer for safety
-          gasLimit = estimatedGas.mul(120).div(100);
-          console.log("🟠 ✅ Estimated gas:", estimatedGas.toString());
-          console.log("🟠 ✅ Gas limit with 20% buffer:", gasLimit.toString());
-        } catch (gasError) {
-          console.warn("🟠 ⚠️ Gas estimation failed, using fallback gas limit:", gasError.message);
-          // Fallback: Use a safe default gas limit for ERC-4626 withdrawals
-          // Typical withdrawal operations use 150k-300k gas, so 400k is a safe upper bound
-          gasLimit = ethers.BigNumber.from("400000");
-          console.log("🟠 ⚠️ Using fallback gas limit:", gasLimit.toString());
-
-          // Even though estimation failed, if simulation passed, we can still try
-          // But log a warning
-          console.warn("🟠 ⚠️ Proceeding with fallback gas limit - transaction may still succeed");
-        }
-      } else {
-        // Farcaster: Skip simulation and use fallback gas limit or manual estimation
-        console.log("🟠 Skipping simulation in Farcaster");
-        try {
-          console.log("🟠 Estimating withdrawal gas with readProvider...");
-          const data = vaultContractWrite.interface.encodeFunctionData("withdraw", [usdcAmount, account, account]);
-          const estimatedGas = await readProvider.estimateGas({
-            to: VAULT_ADDRESS,
-            from: account,
-            data: data,
-            value: 0
-          });
-          console.log("🟠 Estimated gas for withdrawal:", estimatedGas.toString());
-          gasLimit = estimatedGas.mul(120).div(100);
-        } catch (err) {
-          console.warn("⚠️ Gas estimation failed for withdrawal, using fallback:", err);
-          gasLimit = ethers.BigNumber.from("500000");
-        }
-      }
-
-      // Verify we have enough ETH for the gas (READ operation)
-      const gasPrice = await readProvider.getGasPrice();
-      const maxGasCost = gasLimit.mul(gasPrice);
-      console.log("🟠 Gas price:", gasPrice.toString());
-      console.log("🟠 Max gas cost:", ethers.formatEther(maxGasCost), "ETH");
-
-      if (ethBalance.lt(maxGasCost)) {
-        onShowToast?.("error", `Insufficient ETH for gas. Need ~${ethers.formatEther(maxGasCost)} ETH but have ${ethers.formatEther(ethBalance)} ETH.`);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("🟠 Sending withdrawal transaction...");
-      console.log("🟠 Final transaction summary:", {
-        amountUSDC: ethers.formatUnits(usdcAmount, 6),
-        receiver: account,
-        owner: account,
-        gasLimit: gasLimit.toString(),
-        vaultAddress: VAULT_ADDRESS
-      });
-
-      let withdrawOverrides = {
-        gasLimit: gasLimit // Always specify gas limit explicitly
       };
-
-      const withdrawTx = await vaultContractWrite.withdraw(usdcAmount, account, account, withdrawOverrides);
-      console.log("🟠 ✅ Withdraw tx hash:", withdrawTx.hash);
-      console.log("🟠 ✅ Withdraw tx:", {
-        to: withdrawTx.to,
-        from: withdrawTx.from,
-        data: withdrawTx.data,
-        value: withdrawTx.value?.toString(),
-        gasLimit: withdrawTx.gasLimit?.toString(),
-        gasPrice: withdrawTx.gasPrice?.toString(),
-      });
-
-      setTxHash(withdrawTx.hash);
+      const response = await fetch(
+        `${BACKEND_BASE_URL}/wallets/withdraw`, 
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error)
+      }
+      const txHash = data.txHash
+      console.log("🔵 Deposit tx hash:", txHash);
+      
+      setTxHash(txHash);
       setStatus("Waiting for confirmation...");
 
-      // FARCASTER FIX: Use readProvider to wait for transaction (Farcaster provider can't check status)
-      let receipt;
-      if (isFarcaster) {
-        receipt = await readProvider.waitForTransaction(withdrawTx.hash);
-        console.log("✅ Withdrawal confirmed (via fallback provider):", receipt.transactionHash);
-      } else {
-        receipt = await withdrawTx.wait();
-        console.log("✅ Withdrawal confirmed:", receipt.transactionHash);
-      }
+      const receipt = await readProvider.waitForTransaction(txHash);
+      console.log("🔵 Receipt status:", receipt.status);
+      if (receipt.status == 0) {
+        throw new Error("Something went wrong")
+      } 
+      console.log("✅ Withdrawal confirmed (via fallback provider):", receipt.transactionHash);
+
       console.log("🟠 Receipt status:", receipt.status);
       console.log("🟠 Receipt gas used:", receipt.gasUsed.toString());
       console.log("🟠 Transaction confirmation details:", {
