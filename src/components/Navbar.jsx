@@ -82,7 +82,7 @@ const Navbar = ({ onShowToast }) => {
           </button>
         ) : (
           <div className="wallet-connected">
-            {/* Network indicator - hide warning while switching to Base */}
+            {/* Profile image / Network indicator */}
             {switchingNetwork ? (
               <div className={`network-indicator neutral`} title="Switching to Base...">
                 ⏳ <span className="network-text">Switching to Base...</span>
@@ -94,7 +94,21 @@ const Navbar = ({ onShowToast }) => {
                 style={{ cursor: !isBase ? 'pointer' : 'default' }}
                 title={!isBase ? "Click to switch to Base" : "Connected to Base"}
               >
-                {isBase ? '🟢' : '⚠️'} <span className="network-text">{getNetworkName(chainId)}</span>
+                {profileImage ? (
+                  <img 
+                    src={profileImage} 
+                    alt="Profile" 
+                    className="network-profile-image"
+                  />
+                ) : (
+                  <span className="network-avatar-fallback">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="8" r="4" fill="currentColor"/>
+                      <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor"/>
+                    </svg>
+                  </span>
+                )}
+                <span className="network-text">{getNetworkName(chainId)}</span>
               </div>
             )}
 
