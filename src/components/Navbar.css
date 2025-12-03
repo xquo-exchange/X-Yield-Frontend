@@ -128,34 +128,27 @@
     border-color: rgba(255, 255, 255, 0.18);
 }
 
-.wallet-indicator {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(16, 185, 129, 0.9);
-    animation: pulse 2s infinite;
-}
-
 .wallet-profile-image {
     width: 20px;
     height: 20px;
     border-radius: 50%;
     object-fit: cover;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     flex-shrink: 0;
 }
 
-@keyframes pulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.4;
-    }
+.wallet-avatar-placeholder {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
 }
+
 
 .wallet-dropdown {
     position: fixed;
