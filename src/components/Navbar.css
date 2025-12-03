@@ -429,10 +429,6 @@
         min-height: 32px;
     }
 
-    .network-text {
-        display: none;
-    }
-
     .wallet-button {
         padding: 7px 12px;
         font-size: 10px;
