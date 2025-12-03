@@ -200,6 +200,9 @@
 
 .network-text {
     display: inline;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
 }
 
 .dropdown-info {
