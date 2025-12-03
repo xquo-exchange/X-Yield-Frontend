@@ -7,6 +7,7 @@ import "./MorphoApp.css";
 import { computeAPY } from "../utils/calculateYield"
 import PoweredByMorpho from "./PoweredByMorpho";
 import EmailBanner from "./EmailBanner";
+import InfoModal, { InfoButton } from "./InfoModal/InfoModal";
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
@@ -57,6 +58,7 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
     const [showStatus, setShowStatus] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [txHash, setTxHash] = useState(null);
+    const [infoModalType, setInfoModalType] = useState(null);
 
     // Fee configuration - conditional display
     const DEPOSIT_FEE = null; // Set to a number (e.g., 0.5) to show fee, or null to hide
@@ -939,6 +941,7 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                             <span className="pool-stat-label">Current APY</span>
                             <span className="pool-stat-value apy-highlight" style={{ fontSize: '24px' }}>
                                 {isApyLoading ? <span className="loading-dots"></span> : `${BASE_APY.toFixed(2)}%`}
+                                <InfoButton type="apy" onClick={() => setInfoModalType('apy')} />
                             </span>
                         </div>
                         <div className="pool-stat">
@@ -998,8 +1001,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                                 }
                             }}
                         />
-                        <span style={{ fontSize: '18px', fontWeight: '600', color: 'white' }}>
+                        <span style={{ fontSize: '18px', fontWeight: '600', color: 'white', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {mode === "deposit" ? "USDC" : "xPLS"}
+                            {mode === "withdraw" && <InfoButton type="xpls" onClick={() => setInfoModalType('xpls')} />}
                         </span>
                     </div>
 
@@ -1012,7 +1016,10 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
                 {mode === "deposit" && amount && parseFloat(amount) > 0 && (
                     <div className="yield-projection">
-                        <h4 className="yield-title">Projected Earnings</h4>
+                        <h4 className="yield-title">
+                            Projected Earnings
+                            <InfoButton type="earnings" onClick={() => setInfoModalType('earnings')} />
+                        </h4>
                         <div className="yield-grid">
                             <div className="yield-item">
                                 <span className="yield-period">Daily</span>
@@ -1040,7 +1047,10 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
                 {mode === "withdraw" && amount && parseFloat(amount) > 0 && (
                     <div className="withdraw-summary">
-                        <h4 className="withdraw-title">Withdrawal Summary</h4>
+                        <h4 className="withdraw-title">
+                            Withdrawal Summary
+                            <InfoButton type="withdrawal" onClick={() => setInfoModalType('withdrawal')} />
+                        </h4>
                         <div className="withdraw-rows">
                             <div className="withdraw-row">
                                 <span className="withdraw-label">Vault Tokens</span>
@@ -1138,6 +1148,12 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                     </div>,
                     document.body
                 )}
+
+            <InfoModal 
+                type={infoModalType} 
+                isOpen={!!infoModalType} 
+                onClose={() => setInfoModalType(null)} 
+            />
         </>
     );
 };
