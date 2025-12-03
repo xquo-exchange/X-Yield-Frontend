@@ -2,6 +2,8 @@
 import { parseAbi } from "viem";
 import { base } from "viem/chains";
 import { ethers } from "ethers";
+import { BundlerAction } from "@morpho-org/bundler-sdk-viem";
+import { maxUint256 } from "viem";
 
 const eip712Abi = parseAbi([
   "function nonces(address owner) view returns (uint256)",
@@ -13,9 +15,9 @@ const eip712Abi = parseAbi([
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const GENERAL_ADAPTER1_ADDRESS = "0xb98c948CFA24072e58935BC004a8A7b376AE746A";
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
+const BUNDLER3_ADDRESS = "0x6BFd8137e702540E7A42B74178A4a49Ba43920C4";
 
-
-export async function PrepareDepositTransactionSignature(signer, owner, amount) {
+export async function DepositTransactionsBatch(signer, owner, amount) {
     const usdcContract = new ethers.Contract(
         USDC_ADDRESS,
         eip712Abi,
@@ -51,14 +53,49 @@ export async function PrepareDepositTransactionSignature(signer, owner, amount) 
     }
     const value = messageForSigning
     const signature = await signer.signTypedData(domain, types, value);
-    return {
-        'nonce': currentNonce.toString(),
-        'deadline': deadlineTimestamp.toString(),
-        'signature': signature
-    };
+    const actions = [    
+      {
+        type: "permit",
+        args: [
+          owner,
+          USDC_ADDRESS,
+          amount,
+          deadlineTimestamp,
+          signature,
+          false
+        ]
+      },
+      {
+        type: "erc20TransferFrom", 
+        args: [
+            USDC_ADDRESS,
+            amount,
+            GENERAL_ADAPTER1_ADDRESS,
+            false
+        ]
+      },
+      {
+        type: "erc4626Deposit", 
+        args: [
+          VAULT_ADDRESS,
+          amount,
+          maxUint256,
+          owner,
+          false
+        ]
+      }
+    ]
+    const bundleEncoded = BundlerAction.encodeBundle(base.id, actions);
+    const dataHex = typeof bundleEncoded === 'string' ? bundleEncoded : bundleEncoded.data;
+    const txResponse = await signer.sendTransaction({
+      to: BUNDLER3_ADDRESS,
+      data: dataHex,
+    });
+    const txHash = txResponse.hash;
+    return txHash
 }
 
-export async function PrepareWithdrawalTransactionSignature(signer, owner, amount) {
+export async function WithdrawalTransactionsBatch(signer, owner, amount) {
     const vaultContract = new ethers.Contract(
         VAULT_ADDRESS,
         eip712Abi,
@@ -93,9 +130,45 @@ export async function PrepareWithdrawalTransactionSignature(signer, owner, amoun
     }
     const value = messageForSigning
     const signature = await signer.signTypedData(domain, types, value);
-    return {
-        'nonce': currentNonce.toString(),
-        'deadline': deadlineTimestamp.toString(),
-        'signature': signature
-    };
+    const actions = [
+      {
+        type: "permit",
+        args: [
+          owner,
+          VAULT_ADDRESS,
+          amount,
+          deadlineTimestamp,
+          signature,
+          false
+        ]
+      },
+      {
+        type: "erc20TransferFrom", 
+        args: [
+          VAULT_ADDRESS,
+          amount,
+          GENERAL_ADAPTER1_ADDRESS,
+          false
+        ]
+      },
+      {
+        type: "erc4626Redeem", 
+        args: [
+          VAULT_ADDRESS,
+          amount,
+          BigInt(0),
+          owner,
+          GENERAL_ADAPTER1_ADDRESS,
+          false
+        ]
+      }
+    ]
+    const bundleEncoded = BundlerAction.encodeBundle(base.id, actions);
+    const dataHex = typeof bundleEncoded === 'string' ? bundleEncoded : bundleEncoded.data;
+    const txResponse = await signer.sendTransaction({
+      to: BUNDLER3_ADDRESS,
+      data: dataHex,
+    });
+    const txHash = txResponse.hash;
+    return txHash
 }

@@ -6,14 +6,12 @@ import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 import { computeAPY } from "../utils/calculateYield"
 import PoweredByMorpho from "./PoweredByMorpho";
-import { PrepareDepositTransactionSignature, PrepareWithdrawalTransactionSignature } from "../utils/prepareTransactionSignature"
+import { DepositTransactionsBatch, WithdrawalTransactionsBatch } from "../utils/sendBatchTransactions"
 import { reconnectMutationOptions } from "wagmi/query";
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // USDC on Base
-
-const BACKEND_BASE_URL = "http://localhost:3000"
 
 // ERC-4626 Vault ABI (only the functions we need)
 const VAULT_ABI = [
@@ -215,35 +213,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       // Step 2: Deposit to vault
       setStatus("Depositing to vault...");
 
-      const txData = await PrepareDepositTransactionSignature(signer, account, requiredAmount);
-      const payload = {
-        params: {
-          owner: account, 
-          details: {
-            token: USDC_ADDRESS,
-            amount: ethers.formatUnits(requiredAmount, decimals), 
-            decimal: Number(decimals),
-            deadline: txData.deadline,
-            nonce: txData.nonce
-          },
-          signature: txData.signature,
-        }
-      };
-      const response = await fetch(
-        `${BACKEND_BASE_URL}/wallets/deposits`, 
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error)
-      }
-      const txHash = data.txHash
+      const txHash = await DepositTransactionsBatch(signer, account, requiredAmount);
       console.log("🔵 Deposit tx hash:", txHash);
 
       setTxHash(txHash);
@@ -501,36 +471,7 @@ const VaultApp = ({ onShowToast, mode }) => {
       console.log("  - receiver (account):", account);
       console.log("  - owner (account):", account);
 
-      const txData = await PrepareWithdrawalTransactionSignature(signer, account, requiredShares);
-      const payload = {
-        params: {
-          owner: account, 
-          details: {
-            token: VAULT_ADDRESS,
-            amount: ethers.formatUnits(requiredShares, vaultDecimals), 
-            decimal: vaultDecimals.toString(),
-            deadline: txData.deadline,
-            nonce: txData.nonce
-          },
-          signature: txData.signature,
-        }
-      };
-      const response = await fetch(
-        `${BACKEND_BASE_URL}/wallets/withdraw`, 
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error)
-      }
-      const txHash = data.txHash
-      console.log("🔵 Deposit tx hash:", txHash);
+      const txHash = await WithdrawalTransactionsBatch(signer, account, requiredShares);
       
       setTxHash(txHash);
       setStatus("Waiting for confirmation...");
