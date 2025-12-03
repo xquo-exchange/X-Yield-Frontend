@@ -101,3 +101,4 @@ const InfoModal = ({ type, isOpen, onClose }) => {
 
 export default InfoModal;
 
+
