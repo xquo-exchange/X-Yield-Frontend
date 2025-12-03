@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import "./Navbar.css";
 import { useWallet } from "../hooks/useWallet";
+import { useFarcasterProfile } from "../hooks/useFarcasterProfile";
 import xquoLogo from "../assets/X-QUO white.svg";
 
 const Navbar = ({ onShowToast }) => {
@@ -15,6 +16,7 @@ const Navbar = ({ onShowToast }) => {
     switchToBase,
   } = useWallet();
 
+  const { profileImage, isInMiniApp } = useFarcasterProfile();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleConnect = async () => {
@@ -101,7 +103,15 @@ const Navbar = ({ onShowToast }) => {
               className="wallet-button connected desktop-only"
               onClick={() => setShowDropdown(!showDropdown)}
             >
-              <span className="wallet-indicator"></span>
+              {isInMiniApp && profileImage ? (
+                <img 
+                  src={profileImage} 
+                  alt="Profile" 
+                  className="wallet-profile-image"
+                />
+              ) : (
+                <span className="wallet-indicator"></span>
+              )}
               {truncateAddress(walletAddress)}
             </button>
 

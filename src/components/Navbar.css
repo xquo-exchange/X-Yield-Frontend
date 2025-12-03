@@ -136,6 +136,15 @@
     animation: pulse 2s infinite;
 }
 
+.wallet-profile-image {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
 @keyframes pulse {
 
     0%,
