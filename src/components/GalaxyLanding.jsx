@@ -14,14 +14,12 @@ const GalaxyLanding = ({ onConnect }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    // Set canvas size
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       initStars();
     };
 
-    // Initialize stars (fewer, white only)
     const initStars = () => {
       stars.current = [];
       const starCount = 1000;
@@ -42,11 +40,9 @@ const GalaxyLanding = ({ onConnect }) => {
       }
     };
 
-    // Mouse move handler
     const handleMouseMove = (e) => {
       mousePos.current = { x: e.clientX, y: e.clientY };
 
-      // Add to trail (limit length)
       trail.current.push({
         x: e.clientX,
         y: e.clientY,
@@ -59,14 +55,12 @@ const GalaxyLanding = ({ onConnect }) => {
       }
     };
 
-    // Animation loop (optimized)
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw and update trail
-      trail.current.forEach((point, index) => {
+      trail.current.forEach((point) => {
         point.opacity *= 0.92;
         point.radius *= 0.95;
 
@@ -76,12 +70,9 @@ const GalaxyLanding = ({ onConnect }) => {
         ctx.fill();
       });
 
-      // Remove dead trail points
       trail.current = trail.current.filter(p => p.opacity > 0.05);
 
-      // Draw and update stars
       stars.current.forEach((star) => {
-        // Calculate distance from mouse
         const dx = mousePos.current.x - star.x;
         const dy = mousePos.current.y - star.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -102,7 +93,6 @@ const GalaxyLanding = ({ onConnect }) => {
         star.x += star.vx;
         star.y += star.vy;
 
-        // Draw star
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
@@ -133,23 +123,16 @@ const GalaxyLanding = ({ onConnect }) => {
       <div className="galaxy-content">
         <div className="galaxy-hero">
           <img src={xquoLogo} alt="X-QUO" className="galaxy-logo" />
-
-          <h1 className="galaxy-title">
-            Maximize Your <span className="galaxy-gradient-text">Yield</span>
-          </h1>
-
-          <p className="galaxy-subtitle">
-            Earn optimized, non-custodial yield on your USDC on Base Mainnet.
+          
+          <p className="galaxy-tagline">
+            Optimized USDC yield on Base
           </p>
 
-          <button
-            onClick={onConnect}
-            className="galaxy-connect-btn"
-          >
-            Start Earning
+          <button onClick={onConnect} className="galaxy-connect-btn">
+            Connect Wallet
           </button>
-
         </div>
+
         <div className="galaxy-powered-by">
           <PoweredByMorpho />
         </div>
