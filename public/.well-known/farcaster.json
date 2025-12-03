@@ -21,9 +21,9 @@
     "ogDescription": "Earn yield on USDC through the X-QUO vault on Base"
   },
   "accountAssociation": {
-    "header": "eyJmaWQiOjE1MjY3MDYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhlZTUzMzM1RUI0QTA3REY5RDhlQUQ2QWE2YzU1NDlBMEJCZTdkNmJmIn0",
+    "header": "eyJmaWQiOjE1MjgwNDgsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwNzJCYmY3OTMxMTdhRDc3Nzk4M2JhMzRhN2IyM2JiMkIyMjQ3MDhCIn0",
     "payload": "eyJkb21haW4iOiJ4LXF1by5hcHAifQ",
-    "signature": "vPeBO7nEhL3QFw1SfKwvbuT9KGIAoPuL6CDtT+QHxE0EI3/GNfiGNWQ4caY6xCZrSFxOxuioNzTDgNArme5m5xs="
+    "signature": "qd7mD7TGUlQzZNSWy6De7vOyFoFg4caqNz2afw4vQUsyIMgih/EK0LZ4mopXGa2QOb7PCmGqCMdyCAL3LUjiDRw="
   },
   "baseBuilder": {
     "ownerAddress": "0x035bE20DB4438355916F349Baa3f11ff88905A45"
