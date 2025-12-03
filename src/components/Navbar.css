@@ -86,7 +86,7 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 0 12px 0 6px;
+    padding: 0 16px 0 6px;
     min-height: 44px;
     border-radius: 980px;
     font-size: 12px;
@@ -350,7 +350,7 @@
     }
 
     .network-indicator {
-        padding: 0 8px 0 4px;
+        padding: 0 12px 0 4px;
         min-height: 40px;
         font-size: 11px;
         white-space: nowrap;
@@ -427,7 +427,7 @@
     }
 
     .network-indicator {
-        padding: 0 6px 0 2px;
+        padding: 0 10px 0 2px;
         font-size: 10px;
         min-height: 32px;
     }
