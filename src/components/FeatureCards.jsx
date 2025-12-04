@@ -31,9 +31,11 @@ const FeatureCards = () => {
   ];
 
   const toggleModal = () => {
-    setIsOpen(!isOpen);
+    const newIsOpen = !isOpen;
+    setIsOpen(newIsOpen);
     setActiveIndex(0);
-    if (!isOpen) {
+    
+    if (newIsOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -55,6 +57,13 @@ const FeatureCards = () => {
 
     return () => clearInterval(interval);
   }, [isOpen, cards.length]);
+
+  // Cleanup: Reset body overflow when component unmounts
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   return (
     <>
