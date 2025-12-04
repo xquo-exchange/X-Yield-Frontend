@@ -9,6 +9,8 @@ const FeatureCards = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const [isMobile, setIsMobile] = useState(false);
+
   const cards = [
     {
       id: 1,
@@ -46,6 +48,54 @@ const FeatureCards = () => {
     }
   };
 
+  const goToNext = () => {
+    setActiveIndex((prev) => (prev + 1) % cards.length);
+  };
+
+  const goToPrevious = () => {
+    setActiveIndex((prev) => (prev - 1 + cards.length) % cards.length);
+  };
+
+  const goToCard = (index) => {
+    setActiveIndex(index);
+  };
+
+  const handleMobileTap = (event) => {
+    if (!isMobile || !event) return;
+    const target = event.currentTarget;
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const clientX =
+      event.clientX ??
+      event.nativeEvent?.clientX ??
+      event.nativeEvent?.changedTouches?.[0]?.clientX ??
+      null;
+
+    if (clientX == null) {
+      goToNext();
+      return;
+    }
+
+    const midpoint = rect.left + rect.width / 2;
+    if (clientX < midpoint) {
+      goToPrevious();
+    } else {
+      goToNext();
+    }
+  };
+
+  const handleMobileKeyDown = (event) => {
+    if (!isMobile) return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      goToPrevious();
+    } else if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      goToNext();
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -54,7 +104,18 @@ const FeatureCards = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isOpen, cards.length]);
+  }, [isOpen, cards.length, activeIndex]);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      if (typeof window === 'undefined') return;
+      setIsMobile(window.innerWidth <= 480);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   return (
     <>
@@ -76,12 +137,27 @@ const FeatureCards = () => {
               className="feature-cards-close"
               onClick={toggleModal}
               aria-label="Close"
+              onKeyDown={handleMobileKeyDown}
             >
               <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
               </svg>
             </button>
-            <div className="feature-cards-slider">
+            <button 
+              className="feature-cards-nav feature-cards-nav-prev"
+              onClick={goToPrevious}
+              aria-label="Previous card"
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 15L7 10L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div
+              className="feature-cards-slider"
+              onClick={handleMobileTap}
+              role={isMobile ? 'button' : undefined}
+              tabIndex={isMobile ? 0 : undefined}
+            >
               {cards.map((card, index) => (
                 <div
                   key={card.id}
@@ -90,7 +166,13 @@ const FeatureCards = () => {
                 >
                   <div className="feature-card-inner">
                     <div className="feature-card-image-wrapper">
-                      <img src={card.image} alt={card.title} className="feature-card-image" />
+                      <img 
+                        src={card.image} 
+                        alt={card.title} 
+                        className="feature-card-image"
+                        loading="lazy"
+                        decoding="async"
+                      />
                     </div>
                     <div className="feature-card-content">
                       <h3 className="feature-card-title">{card.title}</h3>
@@ -100,11 +182,23 @@ const FeatureCards = () => {
                 </div>
               ))}
             </div>
+            <button 
+              className="feature-cards-nav feature-cards-nav-next"
+              onClick={goToNext}
+              aria-label="Next card"
+            >
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 5L13 10L8 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             <div className="feature-cards-indicators" aria-hidden="true">
               {cards.map((card, index) => (
-                <span
+                <button
                   key={card.id}
+                  type="button"
                   className={`feature-cards-indicator ${index === activeIndex ? 'active' : ''}`}
+                  onClick={() => goToCard(index)}
+                  aria-label={`Go to card ${index + 1}`}
                 />
               ))}
             </div>
