@@ -9,8 +9,6 @@ const FeatureCards = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const [isMobile, setIsMobile] = useState(false);
-
   const cards = [
     {
       id: 1,
@@ -60,38 +58,18 @@ const FeatureCards = () => {
     setActiveIndex(index);
   };
 
-  const handleMobileTap = (event) => {
-    if (!isMobile || !event) return;
-    const target = event.currentTarget;
-    if (!target) return;
-
-    const rect = target.getBoundingClientRect();
-    const clientX =
-      event.clientX ??
-      event.nativeEvent?.clientX ??
-      event.nativeEvent?.changedTouches?.[0]?.clientX ??
-      null;
-
-    if (clientX == null) {
-      goToNext();
-      return;
-    }
-
+  const handleSliderTap = (e) => {
+    if (window.innerWidth > 480) return; // Only on mobile
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tapX = e.clientX || (e.touches && e.touches[0]?.clientX) || (e.changedTouches && e.changedTouches[0]?.clientX);
+    
+    if (!tapX) return;
+    
     const midpoint = rect.left + rect.width / 2;
-    if (clientX < midpoint) {
+    if (tapX < midpoint) {
       goToPrevious();
     } else {
-      goToNext();
-    }
-  };
-
-  const handleMobileKeyDown = (event) => {
-    if (!isMobile) return;
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      goToPrevious();
-    } else if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
       goToNext();
     }
   };
@@ -105,17 +83,6 @@ const FeatureCards = () => {
 
     return () => clearInterval(interval);
   }, [isOpen, cards.length, activeIndex]);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      if (typeof window === 'undefined') return;
-      setIsMobile(window.innerWidth <= 480);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   return (
     <>
@@ -137,7 +104,6 @@ const FeatureCards = () => {
               className="feature-cards-close"
               onClick={toggleModal}
               aria-label="Close"
-              onKeyDown={handleMobileKeyDown}
             >
               <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
@@ -152,11 +118,10 @@ const FeatureCards = () => {
                 <path d="M12 15L7 10L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            <div
+            <div 
               className="feature-cards-slider"
-              onClick={handleMobileTap}
-              role={isMobile ? 'button' : undefined}
-              tabIndex={isMobile ? 0 : undefined}
+              onClick={handleSliderTap}
+              onTouchEnd={handleSliderTap}
             >
               {cards.map((card, index) => (
                 <div
