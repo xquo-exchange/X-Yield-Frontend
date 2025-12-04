@@ -10,6 +10,7 @@ import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
 
 import SocialLinks from "./components/SocialLinks";
+import FeatureCards from "./components/FeatureCards";
 import "./App.css";
 
 function AppContent() {
@@ -91,6 +92,7 @@ function AppContent() {
       )}
 
       <SocialLinks />
+      <FeatureCards />
     </>
   );
 }

@@ -941,6 +941,7 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                             <span className="pool-stat-label">Current APY</span>
                             <span className="pool-stat-value apy-highlight" style={{ fontSize: '24px' }}>
                                 {isApyLoading ? <span className="loading-dots"></span> : `${BASE_APY.toFixed(2)}%`}
+                                <span className="apy-text">APY</span>
                                 <InfoButton type="apy" onClick={() => setInfoModalType('apy')} />
                             </span>
                         </div>

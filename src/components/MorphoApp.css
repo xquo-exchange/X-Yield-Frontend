@@ -145,15 +145,15 @@
   justify-content: center;
   margin-top: 0;
   text-shadow: 0 0 12px rgba(74, 222, 128, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.pool-stat:nth-child(1) .pool-stat-value::after {
-  content: 'APY';
+.pool-stat:nth-child(1) .pool-stat-value .apy-text {
   font-size: 14px;
   opacity: 0.9;
   color: #4ade80;
-  margin-left: 6px;
-  margin-top: 6px;
 }
 
 /* Balance Section (2nd child) - Now Primary (Hero) */
