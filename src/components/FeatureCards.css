@@ -441,6 +441,13 @@
     display: none;
   }
 
+  .feature-cards-slider {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
   .feature-cards-button {
     bottom: 16px;
     right: 16px;
