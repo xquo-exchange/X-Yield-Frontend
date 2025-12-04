@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import './FeatureCards.css';
 import coins3d from '../assets/coins-3d.png';
 import rocket3d from '../assets/rocket-3d.png';
 import shield3d from '../assets/shield-3d.png';
+import xquoIcon from '../assets/x-quo_icon.png';
 
 const FeatureCards = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef(null);
 
   const cards = [
     {
@@ -58,6 +60,34 @@ const FeatureCards = () => {
     return () => clearInterval(interval);
   }, [isOpen, cards.length]);
 
+  // Handle scroll to close modal
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const handleScroll = (e) => {
+      const container = containerRef.current;
+      if (!container) return;
+      
+      const scrollTop = container.scrollTop;
+      
+      // Close modal if scrolled past the cards (scrolled down significantly)
+      if (scrollTop > 100) {
+        setIsOpen(false);
+        setActiveIndex(0);
+        document.body.style.overflow = '';
+      }
+    };
+
+    const container = containerRef.current;
+    container.addEventListener('scroll', handleScroll);
+    
+    return () => {
+      if (container) {
+        container.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [isOpen]);
+
   // Cleanup: Reset body overflow when component unmounts
   useEffect(() => {
     return () => {
@@ -72,15 +102,12 @@ const FeatureCards = () => {
         onClick={toggleModal}
         aria-label="View features"
       >
-        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeWidth="2" fill="none"/>
-          <path d="M10 7V10M10 13H10.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
+        <img src={xquoIcon} alt="X-QUO" className="feature-cards-button-icon" />
       </button>
 
       {isOpen && ReactDOM.createPortal(
         <div className="feature-cards-overlay" onClick={handleOverlayClick}>
-          <div className="feature-cards-container" onClick={(e) => e.stopPropagation()}>
+          <div className="feature-cards-container" ref={containerRef} onClick={(e) => e.stopPropagation()}>
             <button 
               className="feature-cards-close"
               onClick={toggleModal}

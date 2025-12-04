@@ -2,7 +2,7 @@
 .feature-cards-button {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 24px;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -31,16 +31,12 @@
   transform: scale(0.95);
 }
 
-.feature-cards-button svg {
+.feature-cards-button-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-}
-
-.feature-cards-button svg circle,
-.feature-cards-button svg path {
-  stroke-width: 2;
+  object-fit: contain;
 }
 
 /* Overlay */
@@ -79,6 +75,9 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 @keyframes slideUp {
@@ -335,7 +334,7 @@
 @media (max-width: 768px) {
   .feature-cards-button {
     bottom: 20px;
-    right: 20px;
+    left: 20px;
     width: 48px;
     height: 48px;
     background: rgba(255, 255, 255, 0.13);
@@ -343,9 +342,9 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
 
-  .feature-cards-button svg {
-    width: 22px;
-    height: 22px;
+  .feature-cards-button-icon {
+    width: 24px;
+    height: 24px;
   }
 
   .feature-cards-overlay {
@@ -388,7 +387,7 @@
 @media (max-width: 480px) {
   .feature-cards-button {
     bottom: 16px;
-    right: 16px;
+    left: 16px;
     width: 48px;
     height: 48px;
     background: rgba(255, 255, 255, 0.12);
@@ -396,9 +395,9 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
 
-  .feature-cards-button svg {
-    width: 22px;
-    height: 22px;
+  .feature-cards-button-icon {
+    width: 24px;
+    height: 24px;
   }
 
   .feature-cards-button:hover {
