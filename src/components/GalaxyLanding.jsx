@@ -142,3 +142,4 @@ const GalaxyLanding = ({ onConnect }) => {
 };
 
 export default GalaxyLanding;
+
