@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getReferralCode, getReferralStats, linkReferralCode } from '../api/referrals';
 import './ReferralRewards.css';
-import { FiGift, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiCopy, FiCheck } from 'react-icons/fi';
 
 const ReferralRewards = ({ walletAddress, onShowToast }) => {
   const [loading, setLoading] = useState(false);
@@ -71,10 +71,7 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
 
   return (
     <div className="referral-rewards-container">
-      <div className="rewards-header">
-        <FiGift className="rewards-icon" />
-        <h3 className="rewards-title">Reward Hub</h3>
-      </div>
+      <h3 className="rewards-title">Reward Hub</h3>
 
       {loading ? (
         <div className="loading-spinner-small"></div>

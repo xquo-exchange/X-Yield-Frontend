@@ -1,7 +1,7 @@
 /* Reward Hub Container - Matches main app width */
 .referral-rewards-container {
   width: 100%;
-  margin: 0;
+  margin: 0 0 16px 0;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif;
   color: #fff;
   position: relative;
@@ -50,29 +50,17 @@
 }
 
 /* Header Section */
-.rewards-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-  position: relative;
-  z-index: 2;
-}
-
 .rewards-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: #ffffff;
-  margin: 0;
+  margin: 0 0 20px 0;
   letter-spacing: 1.5px;
   text-transform: uppercase;
+  text-align: center;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-}
-
-.rewards-icon {
-  font-size: 18px;
-  color: #4ade80;
-  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.4));
+  position: relative;
+  z-index: 2;
 }
 
 /* Premium Card Styles - Matches pool-detail-card */
@@ -82,9 +70,18 @@
   backdrop-filter: blur(20px);
   padding: 24px;
   border-radius: 24px;
-  margin-bottom: 6px;
   position: relative;
   z-index: 2;
+}
+
+/* More spacing for first two cards */
+.rewards-card:not(:last-child) {
+  margin-bottom: 16px;
+}
+
+/* Less spacing for last card */
+.rewards-card:last-child {
+  margin-bottom: 0;
 }
 
 /* Section Labels - Fully white and bold */
@@ -113,7 +110,7 @@
 }
 
 .code-text {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif;
   font-size: 16px;
   color: #fff;
   font-weight: 600;
