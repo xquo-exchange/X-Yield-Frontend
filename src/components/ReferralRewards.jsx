@@ -33,13 +33,24 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
 
       console.log('📥 Received data:', { codeData, statsData });
       if (codeData) {
-        console.log('✅ Setting referral code:', codeData.code);
+        console.log('✅ Setting referral code:', codeData.referralCode, 'from codeData:', codeData);
         setReferralCode(codeData.referralCode);
       } else {
         console.log('⚠️ No codeData received');
       }
       if (statsData) {
         console.log('✅ Setting stats:', statsData);
+        console.log('🔍 Stats breakdown:', {
+          hasStats: !!statsData,
+          activeBoosts: statsData.activeBoosts,
+          activeBoostsLength: statsData.activeBoosts?.length,
+          activeBoostsType: typeof statsData.activeBoosts,
+          isArray: Array.isArray(statsData.activeBoosts),
+          hasReferral: statsData.hasReferral,
+          invited: statsData.invited,
+          qualified: statsData.qualified,
+          fullStats: statsData
+        });
         setStats(statsData);
       } else {
         console.log('⚠️ No statsData received');
@@ -118,37 +129,78 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
           <div className="rewards-card">
             <div className="section-label" style={{ marginBottom: '12px' }}>Your Boosts</div>
             
-            {stats?.activeBoosts && stats.activeBoosts.length > 0 ? (
-              <div className="boosts-grid">
-                {stats.activeBoosts.map((boost, index) => (
-                  <div key={boost.id || index} className={`boost-item ${boost.status === 'ACTIVE' ? 'active' : ''}`}>
-                    <div className="boost-header">
-                      <span className="boost-type">
-                        {boost.type === 'REFERRAL' ? 'Friend Referral' : 
-                         boost.type === 'DEPOSIT' ? 'Deposit Boost' : 'Welcome Boost'}
-                      </span>
-                      <span className="boost-apy">+{boost.apyBoost}% APY</span>
-                    </div>
-                    
-                    <div className="boost-details">
-                      {boost.status === 'ACTIVE' && (
-                        <div className="boost-dates">
-                          Ends {formatDate(boost.endsAt)}
+            {(() => {
+              console.log('🎯 Boosts render check:', {
+                hasStats: !!stats,
+                hasActiveBoosts: !!stats?.activeBoosts,
+                activeBoostsValue: stats?.activeBoosts,
+                activeBoostsLength: stats?.activeBoosts?.length,
+                isArray: Array.isArray(stats?.activeBoosts),
+                conditionResult: !!(stats?.activeBoosts && stats.activeBoosts.length > 0),
+                fullStats: stats
+              });
+              
+              if (stats?.activeBoosts && stats.activeBoosts.length > 0) {
+                console.log('✅ Rendering boosts grid with', stats.activeBoosts.length, 'boosts');
+                return (
+                  <div className="boosts-grid">
+                    {stats.activeBoosts.map((boost, index) => {
+                      // Determine if boost is active based on endsAt date (API doesn't return status field)
+                      const isActive = boost.endsAt ? new Date(boost.endsAt) > new Date() : true;
+                      const status = isActive ? 'ACTIVE' : 'EXPIRED';
+                      const statusLower = status.toLowerCase();
+                      
+                      console.log(`🎁 Rendering boost ${index}:`, {
+                        boost,
+                        id: boost.id,
+                        type: boost.type,
+                        status: boost.status,
+                        apyBoost: boost.apyBoost,
+                        endsAt: boost.endsAt,
+                        isActive,
+                        calculatedStatus: status,
+                        className: `boost-item ${isActive ? 'active' : ''}`
+                      });
+                      return (
+                        <div key={boost.id || index} className={`boost-item ${isActive ? 'active' : ''}`}>
+                          <div className="boost-header">
+                            <span className="boost-type">
+                              {boost.type === 'REFERRAL' ? 'Friend Referral' : 
+                               boost.type === 'DEPOSIT' ? 'Deposit Boost' : 'Welcome Boost'}
+                            </span>
+                            <span className="boost-apy">+{(boost.apyBoost * 100).toFixed(1)}% APY</span>
+                          </div>
+                          
+                          <div className="boost-details">
+                            {isActive && boost.endsAt && (
+                              <div className="boost-dates">
+                                Ends {formatDate(boost.endsAt)}
+                              </div>
+                            )}
+                            <div className={`boost-status-text status-${statusLower}`}>
+                              <span className="boost-status-dot"></span>
+                              {isActive ? 'Active' : 'Expired'}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div className={`boost-status-text status-${boost.status.toLowerCase()}`}>
-                        <span className="boost-status-dot"></span>
-                        {boost.status === 'ACTIVE' ? 'Active' : boost.status}
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                No active boosts properly qualified yet. Deposit $100+ to activate pending boosts.
-              </div>
-            )}
+                );
+              } else {
+                console.log('⚠️ Rendering empty state - no boosts to display. Reason:', {
+                  noStats: !stats,
+                  noActiveBoosts: !stats?.activeBoosts,
+                  emptyArray: stats?.activeBoosts?.length === 0,
+                  notArray: !Array.isArray(stats?.activeBoosts)
+                });
+                return (
+                  <div className="empty-state">
+                    No active boosts properly qualified yet. Deposit $100+ to activate pending boosts.
+                  </div>
+                );
+              }
+            })()}
           </div>
 
           {/* Section 3: Enter Code (if not linked) or Rewards (if linked) */}
