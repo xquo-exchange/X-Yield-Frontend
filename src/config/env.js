@@ -10,8 +10,10 @@ if (!reownProjectId) {
   throw new Error('Missing VITE_REOWN_PROJECT_ID. Add it to your .env file to supply the AppKit project ID.')
 }
 
+const apiBaseUrl = env.VITE_API_BASE_URL?.trim() || 'https://x-yield-backend-ts-main.vercel.app'
+
 export const ENV = Object.freeze({
   rpcUrl,
-  reownProjectId
+  reownProjectId,
+  apiBaseUrl
 })
-

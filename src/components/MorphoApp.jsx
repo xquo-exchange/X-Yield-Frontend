@@ -8,6 +8,7 @@ import { computeAPY } from "../utils/calculateYield"
 import PoweredByMorpho from "./PoweredByMorpho";
 import EmailBanner from "./EmailBanner";
 import InfoModal, { InfoButton } from "./InfoModal/InfoModal";
+import ReferralRewards from "./ReferralRewards";
 
 // Vault address on Base
 const VAULT_ADDRESS = "0x1440D8BE4003BE42005d7E25f15B01f1635F7640";
@@ -1091,6 +1092,12 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
 
             </div>
+            
+            <ReferralRewards 
+                walletAddress={account}
+                onShowToast={onShowToast}
+            />
+
             <div className="email-banner-wrapper">
                 <EmailBanner />
             </div>
