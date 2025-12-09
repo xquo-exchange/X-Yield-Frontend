@@ -1,6 +1,7 @@
 import { ENV } from '../config/env';
 
 const BASE_URL = ENV.apiBaseUrl;
+console.log('🔧 Referrals API - BASE_URL:', BASE_URL);
 
 /**
  * Helper to handle API responses
@@ -18,16 +19,29 @@ async function handleResponse(response) {
  * @param {string} userId - Wallet address
  */
 export async function getReferralCode(userId) {
-  if (!userId) return null;
+  console.log('📞 getReferralCode() called with userId:', userId);
+  if (!userId) {
+    console.log('❌ getReferralCode: No userId provided, returning null');
+    return null;
+  }
   const address = userId.toLowerCase();
+  const url = `${BASE_URL}/api/referrals/${address}/code`;
+  console.log('🌐 getReferralCode: Fetching from URL:', url);
   
   try {
-    const response = await fetch(`${BASE_URL}/api/referrals/${address}/code`);
+    console.log('⏳ getReferralCode: Starting fetch...');
+    const response = await fetch(url);
+    console.log('📥 getReferralCode: Response received:', { status: response.status, statusText: response.statusText, ok: response.ok });
     // If 404, user might not have a code yet, which is fine
-    if (response.status === 404) return null;
-    return handleResponse(response);
+    if (response.status === 404) {
+      console.log('⚠️ getReferralCode: 404 - user might not have a code yet');
+      return null;
+    }
+    const data = await handleResponse(response);
+    console.log('✅ getReferralCode: Success, data:', data);
+    return data;
   } catch (error) {
-    console.error('Error fetching referral code:', error);
+    console.error('❌ getReferralCode: Error fetching referral code:', error);
     return null;
   }
 }
@@ -37,14 +51,24 @@ export async function getReferralCode(userId) {
  * @param {string} userId - Wallet address
  */
 export async function getReferralStats(userId) {
-  if (!userId) return null;
+  console.log('📞 getReferralStats() called with userId:', userId);
+  if (!userId) {
+    console.log('❌ getReferralStats: No userId provided, returning null');
+    return null;
+  }
   const address = userId.toLowerCase();
+  const url = `${BASE_URL}/api/referrals/${address}/stats`;
+  console.log('🌐 getReferralStats: Fetching from URL:', url);
   
   try {
-    const response = await fetch(`${BASE_URL}/api/referrals/${address}/stats`);
-    return handleResponse(response);
+    console.log('⏳ getReferralStats: Starting fetch...');
+    const response = await fetch(url);
+    console.log('📥 getReferralStats: Response received:', { status: response.status, statusText: response.statusText, ok: response.ok });
+    const data = await handleResponse(response);
+    console.log('✅ getReferralStats: Success, data:', data);
+    return data;
   } catch (error) {
-    console.error('Error fetching referral stats:', error);
+    console.error('❌ getReferralStats: Error fetching referral stats:', error);
     throw error;
   }
 }

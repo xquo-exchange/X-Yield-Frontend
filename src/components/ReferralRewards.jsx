@@ -12,24 +12,42 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    console.log('🔍 ReferralRewards useEffect triggered:', { walletAddress, hasWallet: !!walletAddress });
     if (walletAddress) {
+      console.log('✅ Wallet address exists, calling fetchData()');
       fetchData();
+    } else {
+      console.log('❌ No wallet address, skipping fetchData()');
     }
   }, [walletAddress]);
 
   const fetchData = async () => {
+    console.log('🚀 fetchData() called with walletAddress:', walletAddress);
     setLoading(true);
     try {
+      console.log('📡 About to call getReferralCode and getReferralStats');
       const [codeData, statsData] = await Promise.all([
         getReferralCode(walletAddress),
         getReferralStats(walletAddress)
       ]);
 
-      if (codeData) setReferralCode(codeData.code);
-      if (statsData) setStats(statsData);
+      console.log('📥 Received data:', { codeData, statsData });
+      if (codeData) {
+        console.log('✅ Setting referral code:', codeData.code);
+        setReferralCode(codeData.referralCode);
+      } else {
+        console.log('⚠️ No codeData received');
+      }
+      if (statsData) {
+        console.log('✅ Setting stats:', statsData);
+        setStats(statsData);
+      } else {
+        console.log('⚠️ No statsData received');
+      }
     } catch (error) {
-      console.error('Failed to fetch referral data:', error);
+      console.error('❌ Failed to fetch referral data:', error);
     } finally {
+      console.log('🏁 fetchData() completed, setting loading to false');
       setLoading(false);
     }
   };
@@ -67,7 +85,12 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
     });
   };
 
-  if (!walletAddress) return null;
+  if (!walletAddress) {
+    console.log('❌ ReferralRewards: No walletAddress, returning null');
+    return null;
+  }
+  
+  console.log('🎨 ReferralRewards rendering with:', { walletAddress, loading, referralCode, stats });
 
   return (
     <div className="referral-rewards-container">
