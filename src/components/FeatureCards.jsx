@@ -29,6 +29,13 @@ const FeatureCards = () => {
       image: shield3d,
       title: 'Secure & Safe',
       description: 'Built on Base with battle-tested smart contracts'
+    },
+    {
+      id: 4,
+      image: shield3d,
+      title: 'Documentation',
+      description: 'Learn more about X-QUO features and protocol',
+      link: 'https://x-quo.gitbook.io/x-quo-doc/'
     }
   ];
 
@@ -137,6 +144,24 @@ const FeatureCards = () => {
                     <div className="feature-card-content">
                       <h3 className="feature-card-title">{card.title}</h3>
                       <p className="feature-card-description">{card.description}</p>
+                      {card.link && (
+                        <a 
+                          href={card.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="feature-card-link"
+                          style={{ 
+                            display: 'inline-block', 
+                            marginTop: '8px', 
+                            color: '#10b981', 
+                            textDecoration: 'none', 
+                            fontWeight: '600',
+                            fontSize: '14px'
+                          }}
+                        >
+                          Read Docs →
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1,0 +1,414 @@
+/* Reward Hub Container - Matches main app width */
+.referral-rewards-container {
+  width: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', sans-serif;
+  color: #fff;
+  position: relative;
+  z-index: 1;
+}
+
+/* SINGLE Virtual Net Background - On the container level, centered on middle card */
+.referral-rewards-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 140%;
+  height: 300%;
+  background-image:
+    linear-gradient(rgba(6, 182, 212, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.15) 1px, transparent 1px);
+  background-size: 30px 30px;
+  transform-origin: center center;
+  transform: translate(-50%, -50%) perspective(500px) rotateX(60deg) scale(1.2);
+  z-index: -1;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 60% 50% at center, black 30%, transparent 70%);
+  opacity: 0.8;
+}
+
+/* Rainbow Arch Glow - Blue-ish & Taller - centered on container */
+.referral-rewards-container::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 280px;
+  background: radial-gradient(ellipse at center,
+      rgba(59, 130, 246, 0.6) 0%,
+      rgba(6, 182, 212, 0.4) 30%,
+      rgba(29, 78, 216, 0.2) 70%,
+      transparent 80%);
+  filter: blur(45px);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+/* Header Section */
+.rewards-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.rewards-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.rewards-icon {
+  font-size: 18px;
+  color: #4ade80;
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.4));
+}
+
+/* Premium Card Styles - Matches pool-detail-card */
+.rewards-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px);
+  padding: 24px;
+  border-radius: 24px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Section Labels - Fully white and bold */
+.section-label {
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  display: block;
+  opacity: 0.8;
+}
+
+/* Code Display Area - Matches vault-input-row */
+.code-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 16px;
+  transition: border-color 0.2s;
+  gap: 16px;
+}
+
+.code-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 16px;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 1px;
+  flex: 1;
+}
+
+.copy-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+.copy-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.copy-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Boost Cards - Clean minimal style */
+.boosts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.boost-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.boost-item.active {
+  background: rgba(16, 185, 129, 0.04);
+  border-color: rgba(16, 185, 129, 0.15);
+}
+
+.boost-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.boost-type {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.boost-apy {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 4px 10px;
+  border-radius: 100px;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.2);
+}
+
+.boost-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.boost-dates {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.16);
+}
+
+.boost-status-text {
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.16);
+}
+
+.boost-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-active .boost-status-dot { 
+  background-color: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}
+.status-active .boost-status-text { 
+  color: #4ade80;
+}
+
+.status-pending .boost-status-dot { 
+  background-color: #f59e0b; 
+}
+.status-pending .boost-status-text { 
+  color: #f59e0b; 
+}
+
+.status-expired .boost-status-dot { 
+  background-color: #ef4444; 
+}
+.status-expired .boost-status-text { 
+  color: #ef4444; 
+}
+
+/* Input Form - Matches vault-input-row and vault-action-button */
+.referral-input-group {
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  padding: 4px 4px 4px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.2s;
+}
+
+.referral-input-group:focus-within {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.referral-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 8px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+.referral-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.submit-btn {
+  background: #ffffff;
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  flex-shrink: 0;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.submit-btn:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+}
+
+/* Rewards Summary - Matches balance display */
+.rewards-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.rewards-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.18);
+}
+
+.rewards-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 20px rgba(255, 255, 255, 0.15);
+}
+
+/* Description Text */
+.description-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 12px;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.14);
+}
+
+/* Loading State */
+.loading-spinner-small {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 20px auto;
+  display: block;
+}
+
+.empty-state {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .referral-rewards-container::after {
+    height: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  .referral-rewards-container {
+    margin: 0;
+  }
+  
+  .rewards-card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .referral-rewards-container::after {
+    height: 240px;
+  }
+  
+  .rewards-card {
+    padding: 18px;
+    margin-bottom: 6px;
+  }
+  
+  .rewards-title {
+    font-size: 13px;
+  }
+  
+  .code-text {
+    font-size: 14px;
+  }
+  
+  .boost-type {
+    font-size: 13px;
+  }
+  
+  .rewards-value {
+    font-size: 20px;
+  }
+  
+  .code-display {
+    padding: 12px;
+  }
+  
+  .submit-btn {
+    padding: 0 16px;
+    font-size: 13px;
+  }
+}
