@@ -24,7 +24,8 @@ export async function getReferralCode(userId) {
     console.log('❌ getReferralCode: No userId provided, returning null');
     return null;
   }
-  const address = userId.toLowerCase();
+  // ⚠️ TEMPORARY FIX: Using original case instead of lowercase due to backend case-sensitivity
+  const address = userId;
   const url = `${BASE_URL}/api/referrals/${address}/code`;
   console.log('🌐 getReferralCode: Fetching from URL:', url);
   
@@ -56,7 +57,8 @@ export async function getReferralStats(userId) {
     console.log('❌ getReferralStats: No userId provided, returning null');
     return null;
   }
-  const address = userId.toLowerCase();
+  // ⚠️ TEMPORARY FIX: Using original case instead of lowercase due to backend case-sensitivity
+  const address = userId;
   const url = `${BASE_URL}/api/referrals/${address}/stats`;
   console.log('🌐 getReferralStats: Fetching from URL:', url);
   
