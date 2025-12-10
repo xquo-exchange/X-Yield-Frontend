@@ -83,6 +83,7 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [lastTouchY, setLastTouchY] = useState(null);
   const [touchStartTime, setTouchStartTime] = useState(null);
+  const [lastScrollTop, setLastScrollTop] = useState(0);
   const modalContentRef = useRef(null);
 
   // Check if mobile (responsive)
@@ -113,6 +114,7 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
         modalContentRef.current.style.opacity = '';
         modalContentRef.current.style.transition = '';
         modalContentRef.current.style.scale = '';
+        setLastScrollTop(0);
       }
       
       // Reset overlay opacity
@@ -130,6 +132,24 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
       };
     }
   }, [isOpen]);
+
+  // Track scroll position for scroll-to-close detection
+  useEffect(() => {
+    if (!isOpen || !isMobile || !modalContentRef.current) return;
+
+    const handleScroll = () => {
+      if (modalContentRef.current) {
+        setLastScrollTop(modalContentRef.current.scrollTop);
+      }
+    };
+
+    const modalElement = modalContentRef.current;
+    modalElement.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      modalElement.removeEventListener('scroll', handleScroll);
+    };
+  }, [isOpen, isMobile]);
 
   // Handle swipe down to close on mobile - improved for seamless experience
   const handleTouchStart = (e) => {
@@ -173,9 +193,19 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
         // Apply visual feedback by translating the modal
         modalContentRef.current.style.transform = `translateY(${dragAmount}px) scale(${scale})`;
         modalContentRef.current.style.transition = 'none';
-      } else if (isAtTop && diff < 0) {
-        // Prevent upward drag when at top
-        return;
+      } else if (isAtTop && diff < -15) {
+        // When at top and scrolling up (negative diff), close modal
+        e.preventDefault();
+        setIsDragging(true);
+        
+        // Apply visual feedback for upward scroll
+        const dragAmount = Math.abs(diff);
+        const opacity = Math.max(0.5, 1 - (dragAmount / 200));
+        const scale = Math.max(0.97, 1 - (dragAmount / 1000));
+        
+        modalContentRef.current.style.transform = `translateY(${Math.max(diff, -50)}px) scale(${scale})`;
+        modalContentRef.current.style.transition = 'none';
+        modalContentRef.current.style.opacity = opacity;
       } else if (!isAtTop) {
         // If scrolling down in content, allow normal scroll but reset drag state
         if (isDragging) {
@@ -199,12 +229,20 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
     const timeDiff = Date.now() - touchStartTime;
     const velocity = timeDiff > 0 ? diff / timeDiff : 0;
     
+    // Check if we're at top for upward scroll detection
+    const isAtTop = modalContentRef.current?.scrollTop === 0;
+    
     // Dynamic threshold based on velocity (faster swipe = lower threshold)
     const baseThreshold = 100;
     const velocityThreshold = Math.abs(velocity) > 0.5 ? 50 : baseThreshold;
-    const shouldClose = diff > velocityThreshold || (diff > 50 && velocity > 0.3);
     
-    if (isDragging && shouldClose) {
+    // Close conditions:
+    // 1. Dragging down and meets threshold
+    // 2. At top and scrolling up (negative diff) with sufficient distance
+    const shouldCloseDown = diff > velocityThreshold || (diff > 50 && velocity > 0.3);
+    const shouldCloseUp = isAtTop && diff < -30; // Upward scroll at top
+    
+    if (isDragging && (shouldCloseDown || shouldCloseUp)) {
       // Close modal with smooth animation
       if (modalContentRef.current) {
         const finalTransform = `translateY(${window.innerHeight}px) scale(0.9)`;
