@@ -1160,7 +1160,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
             <InfoModal 
                 type={infoModalType} 
                 isOpen={!!infoModalType} 
-                onClose={() => setInfoModalType(null)} 
+                onClose={() => setInfoModalType(null)}
+                walletAddress={account}
+                currentApy={BASE_APY}
             />
         </>
     );
