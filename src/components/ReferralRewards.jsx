@@ -49,9 +49,38 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
           hasReferral: statsData.hasReferral,
           invited: statsData.invited,
           qualified: statsData.qualified,
+          referrerBoosts: statsData.referrerBoosts,
           fullStats: statsData
         });
-        setStats(statsData);
+        
+        // Combine boosts from both sources:
+        // 1. activeBoosts - boosts from people you invited (you're the referrer)
+        // 2. referrerBoosts / refereeBoosts - boost from the person who invited you (you're the referee)
+        const boostsFromReferrals = Array.isArray(statsData.activeBoosts) 
+          ? statsData.activeBoosts.map(boost => ({ ...boost, source: 'referral', fromReferrer: false }))
+          : [];
+        const boostsFromReferrer = Array.isArray(statsData.referrerBoosts) 
+          ? statsData.referrerBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
+          : Array.isArray(statsData.refereeBoosts) 
+          ? statsData.refereeBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
+          : [];
+        const allBoosts = [...boostsFromReferrals, ...boostsFromReferrer];
+        
+        console.log('🔗 Combined boosts:', {
+          fromReferrals: boostsFromReferrals.length,
+          fromReferrer: boostsFromReferrer.length,
+          total: allBoosts.length,
+          allBoosts,
+          rawActiveBoosts: statsData.activeBoosts,
+          rawReferrerBoosts: statsData.referrerBoosts,
+          rawRefereeBoosts: statsData.refereeBoosts
+        });
+        
+        // Set stats with combined boosts
+        setStats({
+          ...statsData,
+          activeBoosts: allBoosts
+        });
       } else {
         console.log('⚠️ No statsData received');
       }
@@ -161,27 +190,24 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
                         calculatedStatus: status,
                         className: `boost-item ${isActive ? 'active' : ''}`
                       });
+                      // Determine boost label - check if this is from referrer (someone invited you) or from your referrals (you invited someone)
+                      // If boost has a source field or we can detect it from other fields
+                      const isFromReferrer = boost.source === 'referrer' || boost.role === 'referee' || boost.fromReferrer === true;
+                      const boostLabel = boost.type === 'REFERRAL' 
+                        ? (isFromReferrer ? 'Invited By Friend' : 'Friend Referral')
+                        : boost.type === 'DEPOSIT' 
+                        ? 'Deposit Boost' 
+                        : 'Welcome Boost';
+                      
                       return (
                         <div key={boost.id || index} className={`boost-item ${isActive ? 'active' : ''}`}>
                           <div className="boost-header">
                             <span className="boost-type">
-                              {boost.type === 'REFERRAL' ? 'Friend Referral' : 
-                               boost.type === 'DEPOSIT' ? 'Deposit Boost' : 'Welcome Boost'}
+                              {boostLabel}
                             </span>
                             <span className="boost-apy">+{(boost.apyBoost * 100).toFixed(1)}% APY</span>
                           </div>
                           
-                          <div className="boost-details">
-                            {isActive && boost.endsAt && (
-                              <div className="boost-dates">
-                                Ends {formatDate(boost.endsAt)}
-                              </div>
-                            )}
-                            <div className={`boost-status-text status-${statusLower}`}>
-                              <span className="boost-status-dot"></span>
-                              {isActive ? 'Active' : 'Expired'}
-                            </div>
-                          </div>
                         </div>
                       );
                     })}
