@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
-import { computeAPY } from "../utils/calculateYield"
+import { fetchCurrentApy } from "../api/apyService";
 import PoweredByMorpho from "./PoweredByMorpho";
 import EmailBanner from "./EmailBanner";
 import InfoModal, { InfoButton } from "./InfoModal/InfoModal";
@@ -78,20 +78,22 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
 
     useEffect(() => {
+        let isMounted = true;
         async function fetchData() {
             setIsApyLoading(true);
             try {
-                const newApy = await computeAPY();
-                setBaseApy(newApy);
+                const newApy = await fetchCurrentApy();
+                if (isMounted) setBaseApy(newApy);
             } catch (error) {
-                console.error("Error fetching APY:", error);
-                setBaseApy(0);
+                console.warn("Error fetching APY, defaulting to 0:", error);
+                if (isMounted) setBaseApy(0);
             } finally {
-                setIsApyLoading(false);
+                if (isMounted) setIsApyLoading(false);
             }
         }
         fetchData();
-    }, [isConnected]);
+        return () => { isMounted = false; };
+    }, []);
 
     const calculateYield = () => {
         if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
@@ -1169,4 +1171,3 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 };
 
 export default VaultApp;
-

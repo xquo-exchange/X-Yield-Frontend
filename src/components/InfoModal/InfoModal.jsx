@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getApyHistory } from '../../utils/apyHistory';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchApyHistory as fetchBackendApyHistory } from '../../api/apyService';
+import { getApyHistory as getLocalApyHistory } from '../../utils/apyHistory';
 import { getReferralStats } from '../../api/referrals';
 import './InfoModal.css';
 
@@ -279,11 +280,43 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
     setIsDragging(false);
   };
 
+  const normalizeBackendHistory = (history) => {
+    if (!Array.isArray(history)) return [];
+    return history
+      .map((point) => {
+        const apyValue = Number(point?.apy);
+        const tsValue = Number(point?.timestamp);
+        if (!Number.isFinite(apyValue) || !Number.isFinite(tsValue)) return null;
+        const timestampMs = tsValue > 1e12 ? tsValue : tsValue * 1000;
+        return {
+          timestamp: timestampMs,
+          apy: parseFloat(apyValue.toFixed(2)),
+          date: new Date(timestampMs)
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.timestamp - b.timestamp);
+  };
+
+  const filterHistoryByRange = (data, selectedRange) => {
+    if (!Array.isArray(data) || data.length === 0) return [];
+    const now = Date.now();
+    const RANGE_MS = {
+      '24h': 24 * 60 * 60 * 1000,
+      '1w': 7 * 24 * 60 * 60 * 1000,
+      '1m': 30 * 24 * 60 * 60 * 1000,
+      '1y': 365 * 24 * 60 * 60 * 1000
+    };
+    const cutoff = now - (RANGE_MS[selectedRange] || RANGE_MS['24h']);
+    const filtered = data.filter(point => point.timestamp >= cutoff);
+    return filtered.length > 0 ? filtered : data;
+  };
+
   useEffect(() => {
     if (isOpen && type === 'apy') {
       // Fetch both in parallel for faster loading
       Promise.all([
-        fetchApyHistory(),
+        loadApyHistory(),
         walletAddress ? fetchBoosts() : Promise.resolve()
       ]).catch(err => {
         console.error('Error loading APY modal data:', err);
@@ -295,18 +328,32 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
     }
   }, [isOpen, type, timeRange, walletAddress]);
 
-  const fetchApyHistory = async () => {
+  async function loadApyHistory() {
     setIsLoadingHistory(true);
     try {
-      const data = await getApyHistory(timeRange);
-      setApyHistory(data);
+      const backendHistory = await fetchBackendApyHistory();
+      const normalizedHistory = filterHistoryByRange(normalizeBackendHistory(backendHistory), timeRange);
+      if (normalizedHistory.length > 0) {
+        setApyHistory(normalizedHistory);
+        return;
+      }
+
+      console.warn('Backend APY history was empty, falling back to local computation');
+      const fallbackHistory = await getLocalApyHistory(timeRange);
+      setApyHistory(fallbackHistory);
     } catch (error) {
-      console.error('Error fetching APY history:', error);
-      setApyHistory([]);
+      console.warn('Error fetching APY history from backend:', error);
+      try {
+        const fallbackHistory = await getLocalApyHistory(timeRange);
+        setApyHistory(fallbackHistory);
+      } catch (fallbackError) {
+        console.error('APY history fallback computation failed:', fallbackError);
+        setApyHistory([]);
+      }
     } finally {
       setIsLoadingHistory(false);
     }
-  };
+  }
 
   const fetchBoosts = async () => {
     setIsLoadingBoosts(true);
@@ -515,6 +562,3 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
 };
 
 export default InfoModal;
-
-
-
