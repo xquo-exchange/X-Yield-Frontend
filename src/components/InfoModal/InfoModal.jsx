@@ -489,9 +489,6 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                         
                         return (
                           <div key={boost.id || index} className={`apy-boost-item ${isActive ? 'active' : ''}`}>
-                            <div className="apy-boost-icon">
-                              {boost.type === 'REFERRAL' ? '👤' : '🎁'}
-                            </div>
                             <div className="apy-boost-info">
                               <div className="apy-boost-name">{boostLabel}</div>
                               {isActive && <div className="apy-boost-status">Active</div>}
