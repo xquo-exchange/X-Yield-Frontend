@@ -23,7 +23,7 @@ const MARKETS = [
 ]
 
 export async function computeAPY() {
-  // Dichiarazioni corrette e inizializzazione BigNumber
+
   let currentAllocation = {};
   let currentApy = 0;
   let totalSupply = BigNumber.from(0); 
@@ -53,7 +53,7 @@ export async function computeAPY() {
     if (!BigNumber.isBigNumber(allocationBigNumber)) continue; 
 
     try {
-      // Chiama GraphQL e estrai APY
+     
       const result = await runGraphql(
         MARKET_DELTA_QUERY, 
         { "uniqueKey": marketId, "chainId": CHAIN_ID, }

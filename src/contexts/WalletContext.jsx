@@ -221,66 +221,192 @@ export const WalletProvider = ({ children }) => {
 
     setConnecting(true);
 
-    try {
-      await appKit.open();
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
 
-      const account = getAccount(wagmiConfig);
-      if (!account?.address) {
-        return {
-          success: false,
-          error: "NO_ACCOUNT",
-          message: "Wallet connection failed.",
-        };
-      }
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🔄 Connection attempt ${attempt}/${MAX_RETRIES}`);
 
-      await initializeProvider(account);
+        // Open wallet connection modal
+        await appKit.open();
 
-      let currentChainId = getChainId(wagmiConfig);
-      if (currentChainId !== 8453) {
-        setSwitchingNetwork(true);
-        try {
-          await appKit.switchNetwork(8453);
-          currentChainId = getChainId(wagmiConfig);
-          setChainId(typeof currentChainId === "number" ? currentChainId : 8453);
-        } catch (error) {
-          console.warn("Network switch declined or failed:", error);
+        // Wait for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Verify account exists with retry
+        let account = getAccount(wagmiConfig);
+        let accountRetries = 0;
+        while (!account?.address && accountRetries < 5) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          account = getAccount(wagmiConfig);
+          accountRetries++;
+        }
+
+        if (!account?.address) {
+          if (attempt < MAX_RETRIES) {
+            console.warn(`⚠️ No account found, retrying... (${attempt}/${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+            continue;
+          }
+          setConnecting(false);
           return {
             success: false,
-            error: "CHAIN_NOT_SUPPORTED",
-            message: "Please switch to Base network.",
+            error: "NO_ACCOUNT",
+            message: "Wallet connection failed. Please try again.",
           };
-        } finally {
-          setSwitchingNetwork(false);
         }
-      }
 
-      return {
-        success: true,
-        address: account.address,
-        chainId: typeof currentChainId === "number" ? currentChainId : 8453,
-      };
-    } catch (error) {
-      console.error("❌ AppKit connection error:", error);
+        console.log('✅ Account found:', account.address);
 
-      if (
-        error?.code === "USER_REJECTED_REQUEST" ||
-        error?.message?.includes("User rejected")
-      ) {
+        // Initialize provider
+        try {
+          await initializeProvider(account);
+        } catch (initError) {
+          console.error('❌ Provider initialization failed:', initError);
+          if (attempt < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+            continue;
+          }
+          throw initError;
+        }
+
+        // Wait a bit for provider to be set
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Check and switch network if needed
+        let currentChainId = getChainId(wagmiConfig);
+        if (currentChainId !== 8453) {
+          console.log('🔄 Switching to Base network...');
+          setSwitchingNetwork(true);
+          try {
+            await appKit.switchNetwork(8453);
+            
+            // Wait for network switch to complete
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Verify network switch with retries
+            let networkRetries = 0;
+            while (networkRetries < 10) {
+              currentChainId = getChainId(wagmiConfig);
+              if (currentChainId === 8453) {
+                break;
+              }
+              await new Promise(resolve => setTimeout(resolve, 300));
+              networkRetries++;
+            }
+            
+            if (currentChainId !== 8453) {
+              console.warn('⚠️ Network switch verification failed');
+              if (attempt < MAX_RETRIES) {
+                setSwitchingNetwork(false);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+                continue;
+              }
+              setSwitchingNetwork(false);
+              setConnecting(false);
+              return {
+                success: false,
+                error: "CHAIN_NOT_SUPPORTED",
+                message: "Please switch to Base network manually.",
+              };
+            }
+            
+            setChainId(8453);
+            console.log('✅ Successfully switched to Base network');
+          } catch (error) {
+            console.warn("Network switch error:", error);
+            if (error?.code === 4001 || error?.code === "USER_REJECTED_REQUEST") {
+              setSwitchingNetwork(false);
+              setConnecting(false);
+              return {
+                success: false,
+                error: "USER_REJECTED_SIGNATURE",
+                message: "Network switch declined.",
+              };
+            }
+            if (attempt < MAX_RETRIES) {
+              setSwitchingNetwork(false);
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+              continue;
+            }
+              setSwitchingNetwork(false);
+              setConnecting(false);
+              return {
+                success: false,
+                error: "CHAIN_NOT_SUPPORTED",
+                message: "Please switch to Base network.",
+              };
+          } finally {
+            setSwitchingNetwork(false);
+          }
+        }
+
+        // Final verification
+        const finalAccount = getAccount(wagmiConfig);
+        const finalChainId = getChainId(wagmiConfig);
+        
+        if (!finalAccount?.address) {
+          if (attempt < MAX_RETRIES) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+            continue;
+          }
+          setConnecting(false);
+          return {
+            success: false,
+            error: "CONNECTION_FAILED",
+            message: "Connection verification failed. Please try again.",
+          };
+        }
+
+        console.log('✅ Connection successful:', {
+          address: finalAccount.address,
+          chainId: finalChainId
+        });
+
+        setConnecting(false);
         return {
-          success: false,
-          error: "USER_REJECTED_SIGNATURE",
-          message: "Connection declined. You can retry anytime.",
+          success: true,
+          address: finalAccount.address,
+          chainId: typeof finalChainId === "number" ? finalChainId : 8453,
         };
-      }
 
-      return {
-        success: false,
-        error: "CONNECTION_FAILED",
-        message: "Failed to connect wallet. Please try again.",
-      };
-    } finally {
-      setConnecting(false);
+      } catch (error) {
+        console.error(`❌ Connection attempt ${attempt} failed:`, error);
+
+        if (
+          error?.code === "USER_REJECTED_REQUEST" ||
+          error?.message?.includes("User rejected")
+        ) {
+          setConnecting(false);
+          return {
+            success: false,
+            error: "USER_REJECTED_SIGNATURE",
+            message: "Connection declined. You can retry anytime.",
+          };
+        }
+
+        // If this was the last attempt, return error
+        if (attempt === MAX_RETRIES) {
+          setConnecting(false);
+          return {
+            success: false,
+            error: "CONNECTION_FAILED",
+            message: "Failed to connect after multiple attempts. Please try again.",
+          };
+        }
+
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+      }
     }
+
+    setConnecting(false);
+    return {
+      success: false,
+      error: "CONNECTION_FAILED",
+      message: "Failed to connect wallet. Please try again.",
+    };
   }, [connecting, initializeProvider, wagmiConfig]);
 
   const disconnectWallet = useCallback(async () => {

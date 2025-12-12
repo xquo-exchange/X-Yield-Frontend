@@ -281,13 +281,36 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   };
 
   const normalizeBackendHistory = (history) => {
-    if (!Array.isArray(history)) return [];
-    return history
-      .map((point) => {
-        const apyValue = Number(point?.apy);
-        const tsValue = Number(point?.timestamp);
-        if (!Number.isFinite(apyValue) || !Number.isFinite(tsValue)) return null;
+    if (!Array.isArray(history)) {
+      console.warn('⚠️ normalizeBackendHistory: history is not an array', typeof history, history);
+      return [];
+    }
+    
+    if (history.length === 0) {
+      console.warn('⚠️ normalizeBackendHistory: history array is empty');
+      return [];
+    }
+    
+    console.log('📊 Normalizing history:', {
+      length: history.length,
+      firstItem: history[0],
+      sampleKeys: Object.keys(history[0] || {})
+    });
+    
+    const normalized = history
+      .map((point, index) => {
+        // Try different possible field names
+        const apyValue = Number(point?.apy ?? point?.apyValue ?? point?.value ?? point?.y ?? 0);
+        const tsValue = Number(point?.timestamp ?? point?.ts ?? point?.time ?? point?.x ?? 0);
+        
+        if (!Number.isFinite(apyValue) || !Number.isFinite(tsValue)) {
+          console.warn(`⚠️ Invalid data point at index ${index}:`, point);
+          return null;
+        }
+        
+        // Handle timestamp - if it's already in milliseconds (> 1e12), use as-is, otherwise convert from seconds
         const timestampMs = tsValue > 1e12 ? tsValue : tsValue * 1000;
+        
         return {
           timestamp: timestampMs,
           apy: parseFloat(apyValue.toFixed(2)),
@@ -296,10 +319,23 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
       })
       .filter(Boolean)
       .sort((a, b) => a.timestamp - b.timestamp);
+    
+    console.log('✅ Normalized result:', {
+      originalLength: history.length,
+      normalizedLength: normalized.length,
+      firstNormalized: normalized[0],
+      lastNormalized: normalized[normalized.length - 1]
+    });
+    
+    return normalized;
   };
 
   const filterHistoryByRange = (data, selectedRange) => {
-    if (!Array.isArray(data) || data.length === 0) return [];
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn('⚠️ filterHistoryByRange: No data to filter');
+      return [];
+    }
+    
     const now = Date.now();
     const RANGE_MS = {
       '24h': 24 * 60 * 60 * 1000,
@@ -308,7 +344,32 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
       '1y': 365 * 24 * 60 * 60 * 1000
     };
     const cutoff = now - (RANGE_MS[selectedRange] || RANGE_MS['24h']);
-    const filtered = data.filter(point => point.timestamp >= cutoff);
+    
+    console.log('📅 Filtering by range:', {
+      selectedRange,
+      cutoff: new Date(cutoff).toISOString(),
+      now: new Date(now).toISOString(),
+      dataLength: data.length,
+      firstTimestamp: data[0]?.timestamp ? new Date(data[0].timestamp).toISOString() : 'N/A',
+      lastTimestamp: data[data.length - 1]?.timestamp ? new Date(data[data.length - 1].timestamp).toISOString() : 'N/A'
+    });
+    
+    const filtered = data.filter(point => {
+      if (!point || typeof point.timestamp !== 'number') {
+        console.warn('⚠️ Invalid point in filter:', point);
+        return false;
+      }
+      return point.timestamp >= cutoff;
+    });
+    
+    console.log('✅ Filter result:', {
+      originalLength: data.length,
+      filteredLength: filtered.length,
+      cutoffMs: cutoff,
+      oldestPoint: filtered[0]?.timestamp ? new Date(filtered[0].timestamp).toISOString() : 'N/A'
+    });
+    
+    // If filtering removed all data, return original data (better than empty)
     return filtered.length > 0 ? filtered : data;
   };
 
@@ -331,23 +392,73 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   async function loadApyHistory() {
     setIsLoadingHistory(true);
     try {
-      const backendHistory = await fetchBackendApyHistory();
-      const normalizedHistory = filterHistoryByRange(normalizeBackendHistory(backendHistory), timeRange);
-      if (normalizedHistory.length > 0) {
-        setApyHistory(normalizedHistory);
+      console.log('📊 Loading APY history for timeRange:', timeRange);
+      
+      // For longer time ranges (1w, 1m, 1y), use local computation since backend only has 24h
+      const shouldUseLocal = timeRange === '1w' || timeRange === '1m' || timeRange === '1y';
+      
+      if (shouldUseLocal) {
+        console.log('📊 Using local computation for timeRange:', timeRange);
+        const localHistory = await getLocalApyHistory(timeRange);
+        console.log('✅ Local computation result:', {
+          length: localHistory.length,
+          sample: localHistory[0],
+          lastSample: localHistory[localHistory.length - 1]
+        });
+        setApyHistory(localHistory);
         return;
       }
+      
+      // For 24h, try backend first
+      const backendHistory = await fetchBackendApyHistory();
+      console.log('📥 Received backend history:', {
+        length: Array.isArray(backendHistory) ? backendHistory.length : 'not an array',
+        type: typeof backendHistory,
+        sample: Array.isArray(backendHistory) && backendHistory.length > 0 ? backendHistory[0] : null
+      });
+      
+      const normalizedHistory = filterHistoryByRange(normalizeBackendHistory(backendHistory), timeRange);
+      console.log('✅ Normalized history:', {
+        originalLength: Array.isArray(backendHistory) ? backendHistory.length : 0,
+        normalizedLength: normalizedHistory.length,
+        filteredLength: normalizedHistory.length
+      });
+      
+      // Check if backend data actually covers the requested range
+      if (normalizedHistory.length > 0) {
+        const now = Date.now();
+        const RANGE_MS = {
+          '24h': 24 * 60 * 60 * 1000,
+        };
+        const cutoff = now - (RANGE_MS[timeRange] || RANGE_MS['24h']);
+        const oldestPoint = normalizedHistory[0]?.timestamp;
+        const dataCoversRange = oldestPoint && oldestPoint <= cutoff;
+        
+        if (dataCoversRange) {
+          console.log('✅ Using backend APY history (covers requested range)');
+          setApyHistory(normalizedHistory);
+          return;
+        } else {
+          console.warn('⚠️ Backend data does not cover requested range, using local computation');
+        }
+      }
 
-      console.warn('Backend APY history was empty, falling back to local computation');
+      console.warn('⚠️ Backend APY history was empty or invalid, falling back to local computation');
       const fallbackHistory = await getLocalApyHistory(timeRange);
+      console.log('📊 Local fallback history:', {
+        length: fallbackHistory.length,
+        sample: fallbackHistory[0]
+      });
       setApyHistory(fallbackHistory);
     } catch (error) {
-      console.warn('Error fetching APY history from backend:', error);
+      console.error('❌ Error fetching APY history from backend:', error);
       try {
+        console.log('🔄 Attempting local fallback computation...');
         const fallbackHistory = await getLocalApyHistory(timeRange);
+        console.log('✅ Local fallback succeeded:', { length: fallbackHistory.length });
         setApyHistory(fallbackHistory);
       } catch (fallbackError) {
-        console.error('APY history fallback computation failed:', fallbackError);
+        console.error('❌ APY history fallback computation failed:', fallbackError);
         setApyHistory([]);
       }
     } finally {
@@ -442,8 +553,20 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                   {isLoadingHistory ? (
                     <div className="apy-chart-loading">Loading chart...</div>
                   ) : apyHistory.length > 0 ? (
+                    (() => {
+                      console.log('📊 Rendering chart with data:', {
+                        length: apyHistory.length,
+                        firstPoint: apyHistory[0],
+                        lastPoint: apyHistory[apyHistory.length - 1],
+                        allTimestamps: apyHistory.map(p => p.timestamp),
+                        allApyValues: apyHistory.map(p => p.apy)
+                      });
+                      return (
                     <ResponsiveContainer width="100%" height={200}>
-                      <AreaChart data={apyHistory}>
+                      <AreaChart 
+                        data={apyHistory}
+                        margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                      >
                         <defs>
                           <linearGradient id="apyGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#4ade80" stopOpacity={0.3}/>
@@ -453,6 +576,9 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                         <XAxis 
                           dataKey="timestamp" 
+                          type="number"
+                          scale="time"
+                          domain={['dataMin', 'dataMax']}
                           tickFormatter={formatDate}
                           stroke="rgba(255,255,255,0.5)"
                           style={{ fontSize: '11px' }}
@@ -460,7 +586,8 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                         <YAxis 
                           stroke="rgba(255,255,255,0.5)"
                           style={{ fontSize: '11px' }}
-                          domain={['dataMin - 0.5', 'dataMax + 0.5']}
+                          domain={[(dataMin) => Math.max(0, dataMin - 0.5), (dataMax) => dataMax + 0.5]}
+                          allowDecimals={true}
                         />
                         <Tooltip 
                           contentStyle={{ 
@@ -470,7 +597,7 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                             color: '#fff'
                           }}
                           labelFormatter={(value) => formatDate(value)}
-                          formatter={(value) => [`${value.toFixed(2)}%`, 'APY']}
+                          formatter={(value) => [`${Number(value).toFixed(2)}%`, 'APY']}
                         />
                         <Area 
                           type="monotone" 
@@ -478,9 +605,12 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
                           stroke="#4ade80" 
                           strokeWidth={2}
                           fill="url(#apyGradient)"
+                          isAnimationActive={true}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
+                      );
+                    })()
                   ) : (
                     <div className="apy-chart-error">No data available</div>
                   )}

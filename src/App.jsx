@@ -39,6 +39,20 @@ function AppContent() {
     };
   }, [isConnected]);
 
+  // Handle referral code from URL parameter
+  // Capture it immediately on page load (before wallet connection) so it's not lost
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+      // Store in localStorage to be picked up by ReferralRewards component
+      localStorage.setItem('pendingReferralCode', refCode);
+      // Clean up URL by removing the parameter (for cleaner URLs)
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []); // Run once on mount to capture referral code immediately
+
   const showToast = (type, message, txHash = null) => {
     setToast({ type, message, txHash });
   };
