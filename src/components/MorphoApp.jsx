@@ -5,6 +5,7 @@ import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 import { fetchCurrentApy } from "../api/apyService";
+import { getReferralStats } from "../api/referrals";
 import PoweredByMorpho from "./PoweredByMorpho";
 import EmailBanner from "./EmailBanner";
 import InfoModal, { InfoButton } from "./InfoModal/InfoModal";
@@ -67,6 +68,8 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
     const [BASE_APY, setBaseApy] = useState(0);
     const [isApyLoading, setIsApyLoading] = useState(true);
+    const [totalBoost, setTotalBoost] = useState(0); // Total boost as percentage (e.g., 0.5 for 0.5%)
+    const [isLoadingBoost, setIsLoadingBoost] = useState(false);
 
     useEffect(() => {
         if (isConnected && showWarning) setShowWarning(false);
@@ -94,6 +97,61 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         fetchData();
         return () => { isMounted = false; };
     }, []);
+
+    // Fetch user's active boosts
+    useEffect(() => {
+        if (!account) {
+            setTotalBoost(0);
+            return;
+        }
+
+        let isMounted = true;
+        async function fetchBoosts() {
+            setIsLoadingBoost(true);
+            try {
+                const statsData = await getReferralStats(account);
+                if (!isMounted) return;
+
+                if (statsData) {
+                    // Combine boosts from both sources (same logic as ReferralRewards)
+                    const boostsFromReferrals = Array.isArray(statsData.activeBoosts) 
+                        ? statsData.activeBoosts.map(boost => ({ ...boost, source: 'referral', fromReferrer: false }))
+                        : [];
+                    const boostsFromReferrer = Array.isArray(statsData.referrerBoosts) 
+                        ? statsData.referrerBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
+                        : Array.isArray(statsData.refereeBoosts) 
+                        ? statsData.refereeBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
+                        : [];
+                    const allBoosts = [...boostsFromReferrals, ...boostsFromReferrer];
+                    
+                    // Calculate total active boost
+                    const now = new Date();
+                    const activeBoosts = allBoosts.filter(boost => {
+                        // Check if boost is active based on endsAt date
+                        return boost.endsAt ? new Date(boost.endsAt) > now : true;
+                    });
+                    
+                    // Sum all active boost percentages (apyBoost is in decimal form, e.g., 0.005 = 0.5%)
+                    const totalBoostPercent = activeBoosts.reduce((sum, boost) => {
+                        return sum + (boost.apyBoost || 0);
+                    }, 0);
+                    
+                    // Convert to percentage (e.g., 0.005 -> 0.5)
+                    if (isMounted) setTotalBoost(totalBoostPercent * 100);
+                } else {
+                    if (isMounted) setTotalBoost(0);
+                }
+            } catch (error) {
+                console.error("Error fetching boosts:", error);
+                if (isMounted) setTotalBoost(0);
+            } finally {
+                if (isMounted) setIsLoadingBoost(false);
+            }
+        }
+        
+        fetchBoosts();
+        return () => { isMounted = false; };
+    }, [account]);
 
     const calculateYield = () => {
         if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
@@ -946,6 +1004,11 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                                 {isApyLoading ? <span className="loading-dots"></span> : `${BASE_APY.toFixed(2)}%`}
                                 <span className="apy-text">APY</span>
                                 <InfoButton type="apy" onClick={() => setInfoModalType('apy')} />
+                                {totalBoost > 0 && (
+                                    <span className="boost-badge">
+                                        +{totalBoost.toFixed(1)}%
+                                    </span>
+                                )}
                             </span>
                         </div>
                         <div className="pool-stat">

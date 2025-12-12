@@ -170,6 +170,10 @@ export async function getApyHistory(timeRange = '24h') {
   }
 
   // Get current market allocations (weights) for aggregation (use cache)
+  // NOTE: We use CURRENT market weights to aggregate historical APY data.
+  // This is an approximation - ideally we would use historical weights per timestamp,
+  // but that would require fetching historical allocation data which is more complex.
+  // This approach is reasonable if market allocations remain relatively stable over time.
   const { dataPoints: marketWeights } = await getCurrentApyDetailed(true);
 
   if (marketWeights.length === 0) {
