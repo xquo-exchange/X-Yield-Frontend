@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchApyHistory as fetchBackendApyHistory } from '../../api/apyService';
 import { getApyHistory as getLocalApyHistory } from '../../utils/apyHistory';
-import { getReferralStats } from '../../api/referrals';
+import { fetchReferralStatsNormalized } from '../../api/referralStatsService';
 import './InfoModal.css';
 
 const INFO_CONTENT = {
@@ -79,6 +79,10 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [boosts, setBoosts] = useState([]);
   const [isLoadingBoosts, setIsLoadingBoosts] = useState(false);
+  const [referralBonusPercent, setReferralBonusPercent] = useState(0);
+  const [earlyBonusPercent, setEarlyBonusPercent] = useState(0);
+  const [bonusPercent, setBonusPercent] = useState(0);
+  const [isEarlyUser, setIsEarlyUser] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -386,6 +390,10 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
       // Clear data when modal closes to free memory
       setApyHistory([]);
       setBoosts([]);
+      setReferralBonusPercent(0);
+      setEarlyBonusPercent(0);
+      setBonusPercent(0);
+      setIsEarlyUser(false);
     }
   }, [isOpen, type, timeRange, walletAddress]);
 
@@ -469,24 +477,32 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   const fetchBoosts = async () => {
     setIsLoadingBoosts(true);
     try {
-      const statsData = await getReferralStats(walletAddress);
+      const statsData = await fetchReferralStatsNormalized(walletAddress);
       if (statsData) {
-        const boostsFromReferrals = Array.isArray(statsData.activeBoosts) 
-          ? statsData.activeBoosts.map(boost => ({ ...boost, source: 'referral', fromReferrer: false }))
-          : [];
-        const boostsFromReferrer = Array.isArray(statsData.referrerBoosts) 
-          ? statsData.referrerBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-          : Array.isArray(statsData.refereeBoosts) 
-          ? statsData.refereeBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-          : [];
-        const allBoosts = [...boostsFromReferrals, ...boostsFromReferrer];
-        setBoosts(allBoosts);
+        const combinedBonus = Number.isFinite(statsData.totalBonusPercent)
+          ? statsData.totalBonusPercent
+          : Number.isFinite(statsData.bonusPercent)
+          ? statsData.bonusPercent
+          : (statsData.referralBonusPercent || 0) + (statsData.earlyBonusPercent || 0);
+        setBoosts(Array.isArray(statsData.normalizedBoosts) ? statsData.normalizedBoosts : []);
+        setReferralBonusPercent(statsData.referralBonusPercent || 0);
+        setEarlyBonusPercent(statsData.earlyBonusPercent || 0);
+        setBonusPercent(combinedBonus);
+        setIsEarlyUser(!!statsData.isEarlyUser);
       } else {
         setBoosts([]);
+        setReferralBonusPercent(0);
+        setEarlyBonusPercent(0);
+        setBonusPercent(0);
+        setIsEarlyUser(false);
       }
     } catch (error) {
       console.error('Error fetching boosts:', error);
       setBoosts([]);
+      setReferralBonusPercent(0);
+      setEarlyBonusPercent(0);
+      setBonusPercent(0);
+      setIsEarlyUser(false);
     } finally {
       setIsLoadingBoosts(false);
     }
@@ -511,6 +527,8 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
   if (!info) return null;
 
   const isApyModal = type === 'apy';
+  const baseApyValue = Number(currentApy) || 0;
+  const totalApyValue = baseApyValue + (Number.isFinite(bonusPercent) ? bonusPercent : 0);
 
   return ReactDOM.createPortal(
     <div className="info-modal-overlay" onClick={onClose}>
@@ -541,11 +559,40 @@ const InfoModal = ({ type, isOpen, onClose, walletAddress, currentApy }) => {
           
           {isApyModal && (
             <>
+              <div className="apy-breakdown">
+                <div className="apy-breakdown-row">
+                  <span>Base APY</span>
+                  <span>{baseApyValue.toFixed(2)}%</span>
+                </div>
+                <div className="apy-breakdown-row">
+                  <span>Referral bonus</span>
+                  <span>+{referralBonusPercent.toFixed(2)}%</span>
+                </div>
+                {earlyBonusPercent > 0 && (
+                  <div className="apy-breakdown-row">
+                    <span>Early bonus</span>
+                    <span>+{earlyBonusPercent.toFixed(2)}%</span>
+                  </div>
+                )}
+                <div className="apy-breakdown-row apy-breakdown-total">
+                  <span>Total APY</span>
+                  <span>{totalApyValue.toFixed(2)}%</span>
+                </div>
+              </div>
+              {(referralBonusPercent > 0 || earlyBonusPercent > 0) && (
+                <div className="apy-bonus-note">
+                  Referral bonuses are capped at +1.5%. Early access bonus is separate.
+                </div>
+              )}
+
               {/* APY History Graph */}
               <div className="apy-graph-section">
                 <div className="apy-graph-header">
                   <div className="apy-current-display">
-                    <span className="apy-current-value">{currentApy?.toFixed(2) || '0.00'}% APY</span>
+                    <span className="apy-current-value">{totalApyValue.toFixed(2)}% APY</span>
+                    {bonusPercent > 0 && (
+                      <span className="apy-current-subtext">Includes referral + early bonuses</span>
+                    )}
                   </div>
                 </div>
                 

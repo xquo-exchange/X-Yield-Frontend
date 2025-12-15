@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getReferralCode, getReferralStats, linkReferralCode } from '../api/referrals';
+import { getReferralCode, linkReferralCode } from '../api/referrals';
+import { fetchReferralStatsNormalized } from '../api/referralStatsService';
 import './ReferralRewards.css';
 import { FiCopy, FiCheck, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
@@ -38,7 +39,7 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
       console.log('📡 About to call getReferralCode and getReferralStats');
       const [codeData, statsData] = await Promise.all([
         getReferralCode(walletAddress),
-        getReferralStats(walletAddress)
+        fetchReferralStatsNormalized(walletAddress)
       ]);
 
       console.log('📥 Received data:', { codeData, statsData });
@@ -52,44 +53,20 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
         console.log('✅ Setting stats:', statsData);
         console.log('🔍 Stats breakdown:', {
           hasStats: !!statsData,
-          activeBoosts: statsData.activeBoosts,
-          activeBoostsLength: statsData.activeBoosts?.length,
-          activeBoostsType: typeof statsData.activeBoosts,
-          isArray: Array.isArray(statsData.activeBoosts),
+          activeBoosts: statsData.normalizedBoosts,
+          activeBoostsLength: statsData.normalizedBoosts?.length,
+          activeBoostsType: typeof statsData.normalizedBoosts,
+          isArray: Array.isArray(statsData.normalizedBoosts),
           hasReferral: statsData.hasReferral,
           invited: statsData.invited,
           qualified: statsData.qualified,
           referrerBoosts: statsData.referrerBoosts,
           fullStats: statsData
         });
-        
-        // Combine boosts from both sources:
-        // 1. activeBoosts - boosts from people you invited (you're the referrer)
-        // 2. referrerBoosts / refereeBoosts - boost from the person who invited you (you're the referee)
-        const boostsFromReferrals = Array.isArray(statsData.activeBoosts) 
-          ? statsData.activeBoosts.map(boost => ({ ...boost, source: 'referral', fromReferrer: false }))
-          : [];
-        const boostsFromReferrer = Array.isArray(statsData.referrerBoosts) 
-          ? statsData.referrerBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-          : Array.isArray(statsData.refereeBoosts) 
-          ? statsData.refereeBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-          : [];
-        const allBoosts = [...boostsFromReferrals, ...boostsFromReferrer];
-        
-        console.log('🔗 Combined boosts:', {
-          fromReferrals: boostsFromReferrals.length,
-          fromReferrer: boostsFromReferrer.length,
-          total: allBoosts.length,
-          allBoosts,
-          rawActiveBoosts: statsData.activeBoosts,
-          rawReferrerBoosts: statsData.referrerBoosts,
-          rawRefereeBoosts: statsData.refereeBoosts
-        });
-        
-        // Set stats with combined boosts
+
         setStats({
           ...statsData,
-          activeBoosts: allBoosts
+          activeBoosts: Array.isArray(statsData.normalizedBoosts) ? statsData.normalizedBoosts : []
         });
       } else {
         console.log('⚠️ No statsData received');
@@ -320,4 +297,3 @@ const ReferralRewards = ({ walletAddress, onShowToast }) => {
 };
 
 export default ReferralRewards;
-
