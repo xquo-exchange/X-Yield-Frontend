@@ -122,6 +122,15 @@ Color palette:
 ✅ Transaction status modals  
 ✅ Legal disclaimer section  
 
+### APY & Bonus Model (frontend behavior)
+
+- **Backend-driven APY**: Base APY is fetched from the backend (`/api/apy` and `/api/apy/history`); no local APY computation is shown in the UI.
+- **Total APY shown to users**: `Total APY = Base APY + Referral bonus + Early-user bonus`.
+- **Referral bonus**: Each qualifying referral grants a boost for 30 days; referral boosts are capped at **+1.5%** total.
+- **Early-user bonus**: +0.5% APY applied for 1 year from activation (admin/cutoff controlled). This is separate from referral boosts.
+- **Separation of bonuses**: Referral and early bonuses are tracked and displayed separately to avoid double counting.
+- **Chart vs. headline**: The APY chart shows **base APY only**; the headline APY displays the **total APY** (base + bonuses).
+
 ## 🚀 Farcaster Mini App integration
 
 The project is now wired for Farcaster Mini Apps per the official docs:
