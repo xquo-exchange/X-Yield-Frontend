@@ -5,7 +5,7 @@ import { useWallet } from "../hooks/useWallet";
 import { sendGTMEvent } from "../utils/gtm";
 import "./MorphoApp.css";
 import { fetchCurrentApy } from "../api/apyService";
-import { getReferralStats } from "../api/referrals";
+import { fetchReferralStatsNormalized } from "../api/referralStatsService";
 import PoweredByMorpho from "./PoweredByMorpho";
 import EmailBanner from "./EmailBanner";
 import InfoModal, { InfoButton } from "./InfoModal/InfoModal";
@@ -68,7 +68,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
     const [BASE_APY, setBaseApy] = useState(0);
     const [isApyLoading, setIsApyLoading] = useState(true);
-    const [totalBoost, setTotalBoost] = useState(0); // Total boost as percentage (e.g., 0.5 for 0.5%)
+    const [referralBonusPercent, setReferralBonusPercent] = useState(0);
+    const [earlyBonusPercent, setEarlyBonusPercent] = useState(0);
+    const [isEarlyUser, setIsEarlyUser] = useState(false);
     const [isLoadingBoost, setIsLoadingBoost] = useState(false);
 
     useEffect(() => {
@@ -101,7 +103,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
     // Fetch user's active boosts
     useEffect(() => {
         if (!account) {
-            setTotalBoost(0);
+            setReferralBonusPercent(0);
+            setEarlyBonusPercent(0);
+            setIsEarlyUser(false);
             return;
         }
 
@@ -109,41 +113,25 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         async function fetchBoosts() {
             setIsLoadingBoost(true);
             try {
-                const statsData = await getReferralStats(account);
+                const statsData = await fetchReferralStatsNormalized(account);
                 if (!isMounted) return;
 
                 if (statsData) {
-                    // Combine boosts from both sources (same logic as ReferralRewards)
-                    const boostsFromReferrals = Array.isArray(statsData.activeBoosts) 
-                        ? statsData.activeBoosts.map(boost => ({ ...boost, source: 'referral', fromReferrer: false }))
-                        : [];
-                    const boostsFromReferrer = Array.isArray(statsData.referrerBoosts) 
-                        ? statsData.referrerBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-                        : Array.isArray(statsData.refereeBoosts) 
-                        ? statsData.refereeBoosts.map(boost => ({ ...boost, source: 'referrer', fromReferrer: true }))
-                        : [];
-                    const allBoosts = [...boostsFromReferrals, ...boostsFromReferrer];
-                    
-                    // Calculate total active boost
-                    const now = new Date();
-                    const activeBoosts = allBoosts.filter(boost => {
-                        // Check if boost is active based on endsAt date
-                        return boost.endsAt ? new Date(boost.endsAt) > now : true;
-                    });
-                    
-                    // Sum all active boost percentages (apyBoost is in decimal form, e.g., 0.005 = 0.5%)
-                    const totalBoostPercent = activeBoosts.reduce((sum, boost) => {
-                        return sum + (boost.apyBoost || 0);
-                    }, 0);
-                    
-                    // Convert to percentage (e.g., 0.005 -> 0.5)
-                    if (isMounted) setTotalBoost(totalBoostPercent * 100);
-                } else {
-                    if (isMounted) setTotalBoost(0);
+                    setReferralBonusPercent(statsData.referralBonusPercent || 0);
+                    setEarlyBonusPercent(statsData.earlyBonusPercent || 0);
+                    setIsEarlyUser(!!statsData.isEarlyUser);
+                } else if (isMounted) {
+                    setReferralBonusPercent(0);
+                    setEarlyBonusPercent(0);
+                    setIsEarlyUser(false);
                 }
             } catch (error) {
                 console.error("Error fetching boosts:", error);
-                if (isMounted) setTotalBoost(0);
+                if (isMounted) {
+                    setReferralBonusPercent(0);
+                    setEarlyBonusPercent(0);
+                    setIsEarlyUser(false);
+                }
             } finally {
                 if (isMounted) setIsLoadingBoost(false);
             }
@@ -153,11 +141,14 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         return () => { isMounted = false; };
     }, [account]);
 
+    const bonusPercent = referralBonusPercent + earlyBonusPercent;
+    const totalApyPercent = BASE_APY + bonusPercent;
+
     const calculateYield = () => {
         if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
 
         const principal = parseFloat(amount);
-        const apy = BASE_APY;
+        const apy = totalApyPercent;
 
         const yearly = principal * (apy / 100);
         const monthly = yearly / 12;
@@ -1001,15 +992,30 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                         <div className="pool-stat">
                             <span className="pool-stat-label">Current APY</span>
                             <span className="pool-stat-value apy-highlight" style={{ fontSize: '24px' }}>
-                                {isApyLoading ? <span className="loading-dots"></span> : `${BASE_APY.toFixed(2)}%`}
+                                {isApyLoading ? <span className="loading-dots"></span> : `${totalApyPercent.toFixed(2)}%`}
                                 <span className="apy-text">APY</span>
                                 <InfoButton type="apy" onClick={() => setInfoModalType('apy')} />
-                                {totalBoost > 0 && (
+                                {referralBonusPercent > 0 && (
                                     <span className="boost-badge">
-                                        +{totalBoost.toFixed(1)}%
+                                        Referral +{referralBonusPercent.toFixed(2)}%
+                                    </span>
+                                )}
+                                {earlyBonusPercent > 0 && (
+                                    <span className="early-badge">
+                                        Early access +{earlyBonusPercent.toFixed(2)}%
+                                    </span>
+                                )}
+                                {referralBonusPercent > 0 && earlyBonusPercent > 0 && (
+                                    <span className="total-badge">
+                                        Total bonus +{bonusPercent.toFixed(2)}%
                                     </span>
                                 )}
                             </span>
+                            {(referralBonusPercent > 0 || earlyBonusPercent > 0) && (
+                                <div className="bonus-note">
+                                    Referral bonuses are capped at +1.5%. Early access bonus is separate.
+                                </div>
+                            )}
                         </div>
                         <div className="pool-stat">
                             <span className="pool-stat-label">Your Balance</span>
@@ -1102,7 +1108,7 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                             </div>
                         </div>
                         <p className="yield-note">
-                            {isApyLoading ? <span>Loading APY<span className="loading-dots"></span></span> : `Based on ${BASE_APY.toFixed(2)}% APY`}
+                            {isApyLoading ? <span>Loading APY<span className="loading-dots"></span></span> : `Based on ${totalApyPercent.toFixed(2)}% APY`}
                         </p>
                         {DEPOSIT_FEE !== null && (
                             <div className="fee-notice">
