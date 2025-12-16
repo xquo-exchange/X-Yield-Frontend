@@ -143,6 +143,13 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
 
     const bonusPercent = referralBonusPercent + earlyBonusPercent;
     const totalApyPercent = BASE_APY + bonusPercent;
+    const showReferralBadge = referralBonusPercent > 0;
+    const showEarlyBadge = earlyBonusPercent > 0;
+    const showTotalBadge = showReferralBadge && showEarlyBadge;
+    const badgeCount =
+        (showReferralBadge ? 1 : 0) +
+        (showEarlyBadge ? 1 : 0) +
+        (showTotalBadge ? 1 : 0);
 
     const calculateYield = () => {
         if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
@@ -997,27 +1004,27 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                                     <span className="apy-text">APY</span>
                                     <InfoButton type="apy" onClick={() => setInfoModalType('apy')} />
                                 </span>
-                                {(referralBonusPercent > 0 || earlyBonusPercent > 0) && (
+                                {(showReferralBadge || showEarlyBadge) && (
                                     <span className="apy-badges">
-                                        {referralBonusPercent > 0 && (
-                                            <span className="boost-badge">
+                                        {showReferralBadge && (
+                                            <span className={`boost-badge ${badgeCount === 1 ? 'single-badge' : ''}`}>
                                                 Referral +{referralBonusPercent.toFixed(2)}%
                                             </span>
                                         )}
-                                        {earlyBonusPercent > 0 && (
-                                            <span className="early-badge">
+                                        {showEarlyBadge && (
+                                            <span className={`early-badge ${badgeCount === 1 ? 'single-badge' : ''}`}>
                                                 Early access +{earlyBonusPercent.toFixed(2)}%
                                             </span>
                                         )}
-                                        {referralBonusPercent > 0 && earlyBonusPercent > 0 && (
-                                            <span className="total-badge">
+                                        {showTotalBadge && (
+                                            <span className={`total-badge ${badgeCount === 3 ? 'span-two' : ''}`}>
                                                 Total bonus +{bonusPercent.toFixed(2)}%
                                             </span>
                                         )}
                                     </span>
                                 )}
                             </span>
-                            {(referralBonusPercent > 0 || earlyBonusPercent > 0) && (
+                            {(showReferralBadge || showEarlyBadge) && (
                                 <div className="bonus-note">
                                     Referral bonuses are capped at +1.5%. Early access bonus is separate.
                                 </div>
