@@ -34,6 +34,15 @@ const INFO_CONTENT = {
       '• APY can change over time'
     ]
   },
+  boosts: {
+    title: 'Earn Your Boosts',
+    content: [
+      'Welcome Boost: Deposit and stay active to earn your Welcome Boost during your first year on X-QUO.',
+      'Referral Boost: Share your referral link from the Reward Hub.',
+      'When a friend deposits $100+, both of you earn +0.5% APY for 30 days.',
+      'Payouts: Rewards are calculated daily and paid monthly.'
+    ]
+  },
   withdrawal: {
     title: 'Withdrawal Details',
     content: [
