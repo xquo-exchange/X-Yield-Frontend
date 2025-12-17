@@ -70,7 +70,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
     const [isApyLoading, setIsApyLoading] = useState(true);
     const [referralBonusPercent, setReferralBonusPercent] = useState(0);
     const [earlyBonusPercent, setEarlyBonusPercent] = useState(0);
-    const [isEarlyUser, setIsEarlyUser] = useState(false);
+    const [totalBonusPercent, setTotalBonusPercent] = useState(0);
+    const [hasReferralBonus, setHasReferralBonus] = useState(false);
+    const [hasEarlyBonus, setHasEarlyBonus] = useState(false);
     const [isLoadingBoost, setIsLoadingBoost] = useState(false);
 
     useEffect(() => {
@@ -105,7 +107,9 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         if (!account) {
             setReferralBonusPercent(0);
             setEarlyBonusPercent(0);
-            setIsEarlyUser(false);
+            setTotalBonusPercent(0);
+            setHasReferralBonus(false);
+            setHasEarlyBonus(false);
             return;
         }
 
@@ -117,20 +121,40 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                 if (!isMounted) return;
 
                 if (statsData) {
-                    setReferralBonusPercent(statsData.referralBonusPercent || 0);
-                    setEarlyBonusPercent(statsData.earlyBonusPercent || 0);
-                    setIsEarlyUser(!!statsData.isEarlyUser);
+                    const nextReferralPercent = statsData.referralBonusPercent || 0;
+                    const nextEarlyPercent = statsData.earlyBonusPercent || 0;
+                    const nextTotalPercent = Number.isFinite(statsData.totalBonusPercent)
+                        ? statsData.totalBonusPercent
+                        : nextReferralPercent + nextEarlyPercent;
+
+                    setReferralBonusPercent(nextReferralPercent);
+                    setEarlyBonusPercent(nextEarlyPercent);
+                    setTotalBonusPercent(nextTotalPercent);
+                    setHasReferralBonus(
+                        typeof statsData.hasReferralBonus === "boolean"
+                            ? statsData.hasReferralBonus
+                            : nextReferralPercent > 0
+                    );
+                    setHasEarlyBonus(
+                        typeof statsData.hasEarlyBonus === "boolean"
+                            ? statsData.hasEarlyBonus
+                            : nextEarlyPercent > 0
+                    );
                 } else if (isMounted) {
                     setReferralBonusPercent(0);
                     setEarlyBonusPercent(0);
-                    setIsEarlyUser(false);
+                    setTotalBonusPercent(0);
+                    setHasReferralBonus(false);
+                    setHasEarlyBonus(false);
                 }
             } catch (error) {
                 console.error("Error fetching boosts:", error);
                 if (isMounted) {
                     setReferralBonusPercent(0);
                     setEarlyBonusPercent(0);
-                    setIsEarlyUser(false);
+                    setTotalBonusPercent(0);
+                    setHasReferralBonus(false);
+                    setHasEarlyBonus(false);
                 }
             } finally {
                 if (isMounted) setIsLoadingBoost(false);
@@ -141,7 +165,11 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         return () => { isMounted = false; };
     }, [account]);
 
-    const bonusPercent = referralBonusPercent + earlyBonusPercent;
+    const computedBonusPercent = referralBonusPercent + earlyBonusPercent;
+    const resolvedTotalBonusPercent = Number.isFinite(totalBonusPercent)
+        ? totalBonusPercent
+        : computedBonusPercent;
+    const bonusPercent = resolvedTotalBonusPercent;
     const totalApyPercent = BASE_APY + bonusPercent;
     const showReferralBadge = referralBonusPercent > 0;
     const showEarlyBadge = earlyBonusPercent > 0;
@@ -150,6 +178,18 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
         (showReferralBadge ? 1 : 0) +
         (showEarlyBadge ? 1 : 0) +
         (showTotalBadge ? 1 : 0);
+    const welcomeBoostActive = isConnected && hasEarlyBonus;
+    const referralBoostActive = isConnected && hasReferralBonus;
+    const welcomeBoostDisplayPercent = welcomeBoostActive ? earlyBonusPercent : 0;
+    const referralBoostDisplayPercent = referralBoostActive ? referralBonusPercent : 0;
+    const formatBoostPercent = (value) => Math.max(0, Number(value) || 0).toFixed(2);
+    const openBoostGuide = () => setInfoModalType("boosts");
+    const handleBoostKeyDown = (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openBoostGuide();
+        }
+    };
 
     const calculateYield = () => {
         if (!amount || parseFloat(amount) <= 0) return { daily: 0, monthly: 0, yearly: 0 };
@@ -1040,6 +1080,45 @@ const VaultApp = ({ onShowToast, mode, setMode }) => {
                             <span className="pool-stat-label">Network</span>
                             <span className="pool-stat-value">Base</span>
                         </div>
+                    </div>
+                </div>
+
+                <div className="pool-detail-card boosts-card">
+                    <div className="boosts-header">
+                        <h4 className="boosts-title">EARN YOUR BOOSTS</h4>
+                        {!isConnected && (
+                            <div className="boosts-subtitle">Connect wallet to see your boosts</div>
+                        )}
+                    </div>
+                    <div className="boostsRow">
+                        <button
+                            type="button"
+                            className={`boost-tile welcome ${welcomeBoostActive ? "active" : "inactive"}`}
+                            onClick={openBoostGuide}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={handleBoostKeyDown}
+                        >
+                            <div className="boost-tile-header">
+                                <span className="boost-tile-icon">{welcomeBoostActive ? "✓" : "🔒"}</span>
+                                <span className="boost-tile-label">Welcome Boost</span>
+                            </div>
+                            <div className="boost-tile-value">+{formatBoostPercent(welcomeBoostDisplayPercent)}%</div>
+                        </button>
+                        <button
+                            type="button"
+                            className={`boost-tile referral ${referralBoostActive ? "active" : "inactive"}`}
+                            onClick={openBoostGuide}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={handleBoostKeyDown}
+                        >
+                            <div className="boost-tile-header">
+                                <span className="boost-tile-icon">{referralBoostActive ? "✓" : "🔒"}</span>
+                                <span className="boost-tile-label">Referral Boost</span>
+                            </div>
+                            <div className="boost-tile-value">+{formatBoostPercent(referralBoostDisplayPercent)}%</div>
+                        </button>
                     </div>
                 </div>
 
