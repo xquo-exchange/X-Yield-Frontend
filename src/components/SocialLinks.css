@@ -15,7 +15,7 @@
 
 .social-links--landing {
   position: fixed;
-  bottom: 32px;
+  bottom: 100px;
   left: 0;
   right: 0;
   width: 100%;
@@ -73,7 +73,7 @@
   }
 
   .social-links--landing {
-    bottom: 52px;
+    bottom: 120px;
   }
 
   .social-links__icon {
@@ -82,8 +82,20 @@
   }
 }
 
+@media (max-width: 390px) {
+  .social-links--landing {
+    bottom: 120px;
+  }
+}
+
+@media (max-width: 320px) {
+  .social-links--landing {
+    bottom: 120px;
+  }
+}
+
 @media (max-height: 500px) {
   .social-links--landing {
-    bottom: 16px;
+    bottom: 50px;
   }
 }

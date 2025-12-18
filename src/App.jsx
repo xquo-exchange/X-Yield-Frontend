@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { WalletProvider } from "./contexts/WalletContext";
 import { useWallet } from "./hooks/useWallet";
@@ -8,6 +9,8 @@ import Sidebar from "./components/Sidebar";
 import VaultApp from "./components/MorphoApp";
 import Toast from "./components/Toast";
 import GalaxyLanding from "./components/GalaxyLanding";
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import Footer from "./components/Footer";
 
 import SocialLinks from "./components/SocialLinks";
 import FeatureCards from "./components/FeatureCards";
@@ -71,6 +74,7 @@ function AppContent() {
       <div className="landing-layout">
         <GalaxyLanding onConnect={handleConnect} />
         <SocialLinks variant="landing" />
+        <Footer variant="landing" />
       </div>
     );
   }
@@ -107,6 +111,7 @@ function AppContent() {
 
       <SocialLinks />
       <FeatureCards />
+      <Footer />
     </>
   );
 }
@@ -160,13 +165,18 @@ function App() {
   }, []);
 
   return (
-    <WalletProvider>
-      <div className="app">
-        <div className="app-body">
-          <AppContent />
+    <BrowserRouter>
+      <WalletProvider>
+        <div className="app">
+          <div className="app-body">
+            <Routes>
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="*" element={<AppContent />} />
+            </Routes>
+          </div>
         </div>
-      </div>
-    </WalletProvider>
+      </WalletProvider>
+    </BrowserRouter>
   );
 }
 
