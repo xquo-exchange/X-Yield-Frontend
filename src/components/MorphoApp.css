@@ -445,7 +445,7 @@
     letter-spacing: 0.4px;
   }
 
-  .boost-tile-icon,
+  .boost-tile-icon {
     font-size: 12px;
   }
 
