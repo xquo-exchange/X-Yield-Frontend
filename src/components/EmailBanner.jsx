@@ -28,45 +28,38 @@ const EmailBanner = ({ onSubmit }) => {
 
     const cleanedEmail = email.trim();
 
-    const mailchimpUrl =
-      "https://x-quo.us11.list-manage.com/subscribe/post";
-
-    const payload = new URLSearchParams({
-      EMAIL: cleanedEmail,
-      u: "82e2b865d7d8ef53291676964",
-      id: "73b0c7601b",
-      "b_82e2b865d7d8ef53291676964_73b0c7601b": "",
-      f_id: "00b3a3e1f0",
-    });
-
-    console.log("[EmailBanner] Submitting email to Mailchimp", {
+    console.log("[EmailBanner] Submitting email to Email Octopus (via proxy)", {
       email: cleanedEmail,
-      endpoint: mailchimpUrl,
     });
 
     setIsSubmitting(true);
 
     try {
-      await fetch(mailchimpUrl, {
+      const response = await fetch("/api/subscribe", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: payload.toString(),
-        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanedEmail }),
       });
 
-      console.log("[EmailBanner] Mailchimp submission sent");
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || "Subscription failed");
+      }
+
+      console.log("[EmailBanner] Subscription successful");
 
       setStatus({
         type: "success",
-        message: "Thanks! You are now subscribed to our newsletter.",
+        message: data.message || "Thanks! You are now subscribed to our newsletter.",
       });
       setEmail("");
       onSubmit?.(cleanedEmail);
     } catch (error) {
-      console.error("[EmailBanner] Failed to submit to Mailchimp:", error);
+      console.error("[EmailBanner] Failed to subscribe:", error);
       setStatus({
         type: "error",
-        message: "Could not save email. Please try again later.",
+        message: error.message || "Could not save email. Please try again later.",
       });
     } finally {
       setIsSubmitting(false);
@@ -132,13 +125,13 @@ const EmailBanner = ({ onSubmit }) => {
         {(isSubmitting || status) && (
           <p
             className={`email-banner__status ${isSubmitting
-                ? "is-pending"
-                : status.type === "error"
-                  ? "is-error"
-                  : "is-success"
+              ? "is-pending"
+              : status.type === "error"
+                ? "is-error"
+                : "is-success"
               }`}
           >
-            {isSubmitting ? "Sending to Mailchimp..." : status.message}
+            {isSubmitting ? "Subscribing..." : status.message}
           </p>
         )}
       </div>
