@@ -15,6 +15,7 @@ import Footer from "./components/Footer";
 import SocialLinks from "./components/SocialLinks";
 import FeatureCards from "./components/FeatureCards";
 import "./App.css";
+import BetaBanner from "./components/BetaBanner";
 
 function AppContent() {
   const [activePage, setActivePage] = useState("deposit");
@@ -72,6 +73,7 @@ function AppContent() {
   if (!isConnected) {
     return (
       <div className="landing-layout">
+        <BetaBanner />
         <GalaxyLanding onConnect={handleConnect} />
         <SocialLinks variant="landing" />
         <Footer variant="landing" />
@@ -81,7 +83,7 @@ function AppContent() {
 
   return (
     <>
-
+      <BetaBanner />
       <Navbar onShowToast={showToast} />
 
       <div className="content-wrapper">
@@ -99,15 +101,17 @@ function AppContent() {
         </div>
       </div>
 
-      {toast && (
-        <Toast
-          type={toast.type}
-          message={toast.message}
-          txHash={toast.txHash}
-          onClose={closeToast}
-          duration={5000}
-        />
-      )}
+      {
+        toast && (
+          <Toast
+            type={toast.type}
+            message={toast.message}
+            txHash={toast.txHash}
+            onClose={closeToast}
+            duration={5000}
+          />
+        )
+      }
 
       <SocialLinks />
       <FeatureCards />
@@ -179,5 +183,6 @@ function App() {
     </BrowserRouter>
   );
 }
+
 
 export default App;
