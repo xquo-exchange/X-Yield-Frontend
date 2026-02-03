@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import './GalaxyLanding.css';
-import xquoLogo from '../assets/X-QUO white.svg';
 import PoweredByMorpho from './PoweredByMorpho';
 
 const GalaxyLanding = ({ onConnect }) => {
@@ -122,7 +121,7 @@ const GalaxyLanding = ({ onConnect }) => {
 
       <div className="galaxy-content">
         <div className="galaxy-hero">
-          <img src={xquoLogo} alt="X-QUO" className="galaxy-logo" />
+          <img src="/logo.svg" alt="unflat" className="galaxy-logo" />
           
           <p className="galaxy-tagline">
             Optimized USDC yield on Base

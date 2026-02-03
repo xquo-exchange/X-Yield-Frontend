@@ -1,14 +1,14 @@
 {
   "miniapp": {
-    "name": "X-QUO",
+    "name": "unflat",
     "version": "1",
-    "iconUrl": "https://x-quo.app/icon.png",
-    "homeUrl": "https://x-quo.app",
-    "splashImageUrl": "https://x-quo.app/icon.png",
+    "iconUrl": "https://unflat.app/icon.png",
+    "homeUrl": "https://unflat.app",
+    "splashImageUrl": "https://unflat.app/icon.png",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://api.neynar.com/f/app/5c6d59e0-b31d-4b6a-bf4d-1f8cdd619ebe/event",
     "subtitle": "USDC yield on Base",
-    "description": "Earn yield on USDC through the X-QUO vault on Base.",
+    "description": "Earn yield on USDC through the unflat vault on Base.",
     "primaryCategory": "finance",
     "tags": [
       "defi",
@@ -17,8 +17,8 @@
       "startup"
     ],
     "tagline": "Earn USDC yield on base",
-    "ogTitle": "X-QUO – USDC yield on Base",
-    "ogDescription": "Earn yield on USDC through the X-QUO vault on Base"
+    "ogTitle": "unflat – USDC yield on Base",
+    "ogDescription": "Earn yield on USDC through the unflat vault on Base"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjE1MjY3MDYsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhDYjM3RjkxMThBQTliQjk4OGI2MkFEQThkMmZEMEY3NzEyYjRkNGU5In0",

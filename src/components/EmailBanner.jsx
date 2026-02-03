@@ -101,7 +101,7 @@ const EmailBanner = ({ onSubmit }) => {
         </button>
         <div className="email-banner__text">
           <p className="email-banner__eyebrow">Stay in the loop</p>
-          <h3>Get early access to X-QUO updates</h3>
+          <h3>Get early access to unflat updates</h3>
           <p>
             Subscribe to receive vault news, yield announcements, and early
             feature previews directly in your inbox.

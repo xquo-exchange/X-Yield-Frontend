@@ -4,7 +4,6 @@ import './FeatureCards.css';
 import coins3d from '../assets/coins-3d.png';
 import rocket3d from '../assets/rocket-3d.png';
 import shield3d from '../assets/shield-3d.png';
-import xquoIcon from '../assets/x-quo_icon.png';
 
 const FeatureCards = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,8 +33,8 @@ const FeatureCards = () => {
       id: 4,
       image: shield3d,
       title: 'Documentation',
-      description: 'Learn more about X-QUO features and protocol',
-      link: 'https://x-quo.gitbook.io/x-quo-doc/'
+      description: 'Learn more about unflat features and protocol',
+      link: 'https://unflat.gitbook.io/unflat-doc/'
     }
   ];
 
@@ -109,7 +108,7 @@ const FeatureCards = () => {
         onClick={toggleModal}
         aria-label="View features"
       >
-        <img src={xquoIcon} alt="X-QUO" className="feature-cards-button-icon" />
+        <img src="/icon.svg" alt="unflat" className="feature-cards-button-icon" />
       </button>
 
       {isOpen && ReactDOM.createPortal(

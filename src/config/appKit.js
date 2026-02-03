@@ -24,13 +24,13 @@ export const appKit = createAppKit({
   networks,
   themeMode: 'dark',
   metadata: {
-    name: 'X-QUO Vault',
-    description: 'X-QUO Vault on Base',
+    name: 'unflat Vault',
+    description: 'unflat Vault on Base',
     url: typeof window !== 'undefined' ? window.location.origin : 'https://xquo-chi.vercel.app',
     icons: [
       typeof window !== 'undefined'
-        ? `${window.location.origin}/x-quo_icon.png`
-        : 'https://xquo-chi.vercel.app/x-quo_icon.png'
+        ? `${window.location.origin}/icon.png`
+        : 'https://unflat.app/icon.png'
     ]
   },
   features: {

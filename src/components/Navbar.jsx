@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import "./Navbar.css";
 import { useWallet } from "../hooks/useWallet";
 import { useFarcasterProfile } from "../hooks/useFarcasterProfile";
-import xquoLogo from "../assets/X-QUO white.svg";
 
 const Navbar = ({ onShowToast }) => {
   const {
@@ -69,7 +68,7 @@ const Navbar = ({ onShowToast }) => {
   return (
     <nav className="navbar">
       <div className="navbar-left">
-        <img src={xquoLogo} alt="X-QUO" className="navbar-logo-image" />
+        <img src="/logo.svg" alt="unflat" className="navbar-logo-image" />
       </div>
       <div className="navbar-right">
         {!isConnected ? (

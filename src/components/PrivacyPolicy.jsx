@@ -34,9 +34,9 @@ const PrivacyPolicy = () => {
 
         <main id="content">
           <p>
-            This Privacy Policy ("Policy") for X-QUO, its affiliates, subsidiaries, successors, and assigns ("Company," "we", "our", or "us")
-            describes the basis on which we may use and process personal information we may collect from users of the Company's website (x-quo.com),
-            the web app (x-quo.app) (x-quo.com and x-quo.app collectively referred to as "Sites"), and any tools, products, services, features, and
+            This Privacy Policy ("Policy") for unflat, its affiliates, subsidiaries, successors, and assigns ("Company," "we", "our", or "us")
+            describes the basis on which we may use and process personal information we may collect from users of the Company's website (unflat.com),
+            the web app (unflat.app) (unflat.com and unflat.app collectively referred to as "Sites"), and any tools, products, services, features, and
             functionalities available through the Sites (collectively, the "Services"), in accordance with applicable law.
             For purposes of applicable data protection laws, the Company is the data controller. For the purposes of this Policy, "you" and "your"
             refers to you as the user of the Services.
@@ -95,7 +95,7 @@ const PrivacyPolicy = () => {
             <p>
               The processing of this data is carried out for the business purpose of enabling your access to, use of, connection to, and interaction with the Services,
               including (i) to facilitate your connection to the Sites, and/or (ii) to identify if you are likely to be a Prohibited Person, as defined in our general
-              Terms of Service, available at www.x-quo.com/terms-and-conditions-of-use/, or if you are subject to any prohibitions with respect to the Services. Each case
+              Terms of Service, available at www.unflat.com/terms-and-conditions-of-use/, or if you are subject to any prohibitions with respect to the Services. Each case
               with respect to any of (i), and/or (ii) is in order for us to perform our contract with you and in our legitimate interests to provide effective Services to you.
             </p>
 
@@ -251,7 +251,7 @@ const PrivacyPolicy = () => {
 
             <p>
               Should you have any questions or complaints about our privacy or data-protection practices, your personal data, or this Policy, you can email us at
-              <a href="mailto:info@x-quo.com"> info@x-quo.com</a>
+              <a href="mailto:info@unflat.com"> info@unflat.com</a>
             </p>
           </section>
         </main>
